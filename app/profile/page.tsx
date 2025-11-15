@@ -14,9 +14,12 @@ export default function ProfilePage() {
   const { user, loading: authLoading } = useAuth();
   const [userData, setUserData] = useState<any>(null);
   const [selectedAnimal, setSelectedAnimal] = useState<AnimalType | undefined>();
+  const [nickname, setNickname] = useState('');
+  const [useNickname, setUseNickname] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingNickname, setSavingNickname] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -38,11 +41,64 @@ export default function ProfilePage() {
       if (data?.character?.animalType) {
         setSelectedAnimal(data.character.animalType as AnimalType);
       }
+      
+      // 별명 설정 초기화
+      if (data) {
+        setNickname(data.nickname || '');
+        setUseNickname(data.useNickname !== false);
+      }
     } catch (error) {
       console.error('사용자 데이터 로드 실패:', error);
       setError('사용자 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const validateNickname = (value: string): string | null => {
+    if (!value.trim()) {
+      return '별명을 입력해주세요.';
+    }
+    
+    if (value.trim().length < 2) {
+      return '별명은 2글자 이상이어야 합니다.';
+    }
+    
+    // 한글 또는 영문 조합만 허용
+    const nicknameRegex = /^[가-힣a-zA-Z\s]+$/;
+    if (!nicknameRegex.test(value.trim())) {
+      return '별명은 한글 또는 영문만 사용할 수 있습니다.';
+    }
+    
+    return null;
+  };
+
+  const handleSaveNickname = async () => {
+    if (!user) return;
+
+    if (useNickname) {
+      const validationError = validateNickname(nickname);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
+
+    setError('');
+    setSavingNickname(true);
+
+    try {
+      await updateUserData(user.uid, {
+        nickname: useNickname ? nickname.trim() : '',
+        useNickname,
+      });
+
+      await fetchUserData();
+      alert('별명이 변경되었습니다!');
+    } catch (err: any) {
+      setError(err.message || '별명 변경에 실패했습니다.');
+    } finally {
+      setSavingNickname(false);
     }
   };
 
@@ -102,6 +158,119 @@ export default function ProfilePage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-3xl font-bold">프로필</h1>
+
+      {/* 오늘의 감상 공개 설정 */}
+      <Card title="오늘의 감상 공개 설정">
+        <div className="space-y-4">
+          <p className="text-gray-600 text-sm">
+            다른 사용자에게 오늘의 감상을 공개할지 설정할 수 있습니다.
+            <br />
+            이 설정은 앞으로 작성하는 독서 기록에 적용됩니다.
+          </p>
+          <label className="flex items-center space-x-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={userData.showTodayThought !== false}
+              onChange={async (e) => {
+                if (!user) return;
+                try {
+                  await updateUserData(user.uid, {
+                    showTodayThought: e.target.checked,
+                  });
+                  await fetchUserData();
+                } catch (error) {
+                  console.error('설정 변경 실패:', error);
+                  alert('설정 변경에 실패했습니다.');
+                }
+              }}
+              className="w-4 h-4 text-primary-600 focus:ring-primary-500 rounded"
+            />
+            <span className="text-gray-700">
+              다른 사용자에게 오늘의 감상을 공개합니다
+            </span>
+          </label>
+          <p className="text-xs text-gray-500 ml-6">
+            체크 해제 시 다른 사용자에게 오늘의 감상이 보이지 않습니다.
+          </p>
+        </div>
+      </Card>
+
+      {/* 별명 설정 */}
+      <Card title="별명 설정">
+        <div className="space-y-4">
+          <p className="text-gray-600 text-sm">
+            독서 활동에서 사용할 이름을 설정할 수 있습니다.
+          </p>
+
+          {/* 별명 사용 여부 선택 */}
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">
+              이름 표시 방식
+            </label>
+            <div className="flex gap-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="nameType"
+                  checked={useNickname}
+                  onChange={() => setUseNickname(true)}
+                  className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-gray-700">별명 사용</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="nameType"
+                  checked={!useNickname}
+                  onChange={() => setUseNickname(false)}
+                  className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                />
+                <span className="text-gray-700">실명 사용</span>
+              </label>
+            </div>
+          </div>
+
+          {/* 별명 입력 */}
+          {useNickname && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                별명 <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => {
+                  setNickname(e.target.value);
+                  setError('');
+                }}
+                placeholder="2글자 이상의 별명을 입력하세요"
+                maxLength={20}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 bg-white text-base"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                한글 또는 영문 조합으로 2글자 이상 입력해주세요.
+              </p>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={handleSaveNickname}
+              disabled={savingNickname || (useNickname && !nickname.trim())}
+              className="px-6"
+            >
+              {savingNickname ? '저장 중...' : '별명 저장'}
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* 현재 캐릭터 표시 */}
       <Card title="현재 캐릭터">
@@ -185,6 +354,7 @@ export default function ProfilePage() {
           </div>
         </div>
       </Card>
+
     </div>
   );
 }

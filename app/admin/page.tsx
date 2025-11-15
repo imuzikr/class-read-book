@@ -16,6 +16,7 @@ import {
   type ReadingLog,
   type Review,
 } from '@/lib/firebase/firestore';
+import { getUserDisplayName } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
@@ -123,7 +124,7 @@ export default function AdminPage() {
             
             return {
               userId: book.userId,
-              userName: userData.displayName || userData.name || '이름 없음',
+              userName: getUserDisplayName(userData),
               progress,
             };
           } else {
@@ -218,7 +219,7 @@ export default function AdminPage() {
               
               return {
                 userId: b.userId,
-                userName: userData.displayName || userData.name || '이름 없음',
+                userName: getUserDisplayName(userData),
                 progress,
                 status: b.status,
                 currentPage: b.currentPage,
@@ -351,7 +352,7 @@ export default function AdminPage() {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 truncate">
-                          {userData.displayName || userData.name || '이름 없음'}
+                          {getUserDisplayName(userData)}
                         </div>
                         <div className="text-xs text-gray-500 truncate">{userData.email}</div>
                         <div className="text-xs text-gray-400 mt-1">
@@ -489,7 +490,7 @@ export default function AdminPage() {
                   )}
                   <div className="flex-1">
                     <h2 className="text-2xl font-bold mb-1">
-                      {selectedUser.displayName || selectedUser.name || '이름 없음'}
+                      {getUserDisplayName(selectedUser)}
                     </h2>
                     <p className="text-gray-600 mb-2">{selectedUser.email}</p>
                     <div className="flex flex-wrap gap-4 text-sm">

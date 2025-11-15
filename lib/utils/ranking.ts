@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import type { UserData } from '@/lib/firebase/firestore';
+import { getUserDisplayNameForRanking } from './userDisplay';
 
 /**
  * 랭킹 기간 타입
@@ -165,7 +166,7 @@ export const getRankings = async (
 
       rankings.push({
         userId: data.userId,
-        userName: userData.name,
+        userName: getUserDisplayNameForRanking(userData),
         userEmail: userData.email,
         totalExp: data.totalExp,
         rank: rank++,

@@ -224,6 +224,11 @@ function ReadingLogContent() {
       // 경험치 계산 (연속 독서 보너스는 서버에서 처리)
       const expGained = calculateExpGain(pagesRead, false, 0);
 
+      // 사용자 데이터에서 공개 설정 가져오기
+      const { getUserData } = await import('@/lib/firebase/firestore');
+      const userData = await getUserData(user.uid);
+      const isPublic = userData?.showTodayThought !== false; // 기본값은 true
+
       // 독서 기록 생성
       await createReadingLog({
         userId: user.uid,
@@ -233,6 +238,7 @@ function ReadingLogContent() {
         startPage,
         endPage,
         notes,
+        isPublic,
         expGained,
       });
 

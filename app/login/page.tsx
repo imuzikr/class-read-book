@@ -90,11 +90,20 @@ export default function LoginPage() {
       const result = await signIn(email, password);
       const userId = result.user.uid;
 
-      // 사용자 데이터 확인 및 캐릭터 선택 페이지로 리다이렉트
+      // 별명 설정 -> 캐릭터 선택 -> 대시보드 순서로 확인
       try {
         const userData = await getUserData(userId);
-        if (userData && !userData.character) {
-          router.push('/character/select');
+        if (userData) {
+          if (userData.nickname === undefined) {
+            // 별명이 없으면 별명 설정 페이지로
+            router.push('/nickname/setup');
+          } else if (!userData.character) {
+            // 별명은 있지만 캐릭터가 없으면 캐릭터 선택 페이지로
+            router.push('/character/select');
+          } else {
+            // 모두 있으면 대시보드로
+            router.push('/dashboard');
+          }
         } else {
           router.push('/dashboard');
         }
@@ -157,11 +166,20 @@ export default function LoginPage() {
         // 사용자 데이터 생성 실패해도 계속 진행
       }
 
-      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+      // 별명 설정 -> 캐릭터 선택 -> 대시보드 순서로 확인
       try {
         const userData = await getUserData(userId);
-        if (userData && !userData.character) {
-          router.push('/character/select');
+        if (userData) {
+          if (userData.nickname === undefined) {
+            // 별명이 없으면 별명 설정 페이지로
+            router.push('/nickname/setup');
+          } else if (!userData.character) {
+            // 별명은 있지만 캐릭터가 없으면 캐릭터 선택 페이지로
+            router.push('/character/select');
+          } else {
+            // 모두 있으면 대시보드로
+            router.push('/dashboard');
+          }
         } else {
           router.push('/dashboard');
         }

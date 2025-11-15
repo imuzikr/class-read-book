@@ -8,6 +8,7 @@ import { getAllUsers } from '@/lib/firebase/users';
 import { getLevelProgress, getExpToNextLevel, getLevelFromExp } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
 import { updateUserData } from '@/lib/firebase/firestore';
+import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 
 interface UserStatus {
@@ -109,7 +110,7 @@ export default function StatusBarPage() {
 
           return {
             userId: userData.id,
-            userName: userData.name,
+            userName: getUserDisplayNameForRanking(userData),
             level: userData.level,
             exp: userData.exp,
             totalPagesRead: userData.totalPagesRead,

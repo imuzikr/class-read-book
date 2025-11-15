@@ -340,6 +340,10 @@ export default function BookDetailPage() {
       // 경험치 계산
       const expGained = calculateExpGain(pagesRead);
 
+      // 사용자 데이터에서 공개 설정 가져오기
+      const userData = await getUserData(user.uid);
+      const isPublic = userData?.showTodayThought !== false; // 기본값은 true
+
       // 독서 기록 생성
       await createReadingLog({
         userId: user.uid,
@@ -349,6 +353,7 @@ export default function BookDetailPage() {
         endPage,
         pagesRead,
         notes: readingLogForm.notes.trim(),
+        isPublic,
         expGained,
       });
 
@@ -366,8 +371,7 @@ export default function BookDetailPage() {
       
       await updateBook(book.id!, bookUpdates);
 
-      // 사용자 통계 업데이트
-      const userData = await getUserData(user.uid);
+      // 사용자 통계 업데이트 (이미 위에서 가져온 userData 사용)
       if (userData) {
         const streakData = updateStreakOnNewLog(
           logDate,

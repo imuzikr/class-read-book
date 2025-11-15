@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { getUserData } from '@/lib/firebase/firestore';
+import { getUserDisplayName } from '@/lib/utils/userDisplay';
 import Button from '@/components/ui/Button';
 import { logout } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
@@ -11,6 +13,23 @@ export default function Header() {
   const { user, loading, isAdmin } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDisplayName, setUserDisplayName] = useState<string>('');
+
+  useEffect(() => {
+    if (user) {
+      getUserData(user.uid).then((userData) => {
+        if (userData) {
+          setUserDisplayName(getUserDisplayName(userData));
+        } else {
+          setUserDisplayName(user.displayName || user.email || '');
+        }
+      }).catch(() => {
+        setUserDisplayName(user.displayName || user.email || '');
+      });
+    } else {
+      setUserDisplayName('');
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -65,7 +84,7 @@ export default function Header() {
                   </Link>
                 )}
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600 hidden xl:inline">{user.displayName || user.email}</span>
+                  <span className="text-sm text-gray-600 hidden xl:inline">{userDisplayName || user.displayName || user.email}</span>
                   <Button variant="outline" size="sm" onClick={handleLogout}>
                     로그아웃
                   </Button>
@@ -169,7 +188,7 @@ export default function Header() {
                   )}
                   <div className="pt-2 border-t border-gray-200">
                     <div className="px-2 py-1 text-sm text-gray-600 mb-2">
-                      {user.displayName || user.email}
+                      {userDisplayName || user.displayName || user.email}
                     </div>
                     <Button 
                       variant="outline" 

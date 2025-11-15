@@ -33,6 +33,12 @@ export default function CharacterSelectPage() {
       const data = await getUserData(user.uid);
       setUserData(data);
       
+      // 별명이 없으면 별명 설정 페이지로 이동
+      if (data?.nickname === undefined) {
+        router.push('/nickname/setup');
+        return;
+      }
+      
       // 이미 캐릭터가 있으면 대시보드로 이동
       if (data?.character) {
         router.push('/dashboard');

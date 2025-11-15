@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { getRankings, getUserRanking, type RankingPeriod, type RankingItem } from '@/lib/utils/ranking';
+import { getUserData, getBooks, getReadingLogs } from '@/lib/firebase/firestore';
+import type { UserData, Book, ReadingLog } from '@/lib/firebase/firestore';
+import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 
@@ -15,6 +19,11 @@ export default function RankingPage() {
   const [period, setPeriod] = useState<RankingPeriod>('all-time');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [selectedUser, setSelectedUser] = useState<{ userId: string; userName: string } | null>(null);
+  const [selectedUserData, setSelectedUserData] = useState<UserData | null>(null);
+  const [selectedUserBooks, setSelectedUserBooks] = useState<Book[]>([]);
+  const [selectedUserLogs, setSelectedUserLogs] = useState<ReadingLog[]>([]);
+  const [loadingUserDetail, setLoadingUserDetail] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -89,24 +98,21 @@ export default function RankingPage() {
     if (rank === 1) return <span className="text-2xl">🥇</span>;
     if (rank === 2) return <span className="text-2xl">🥈</span>;
     if (rank === 3) return <span className="text-2xl">🥉</span>;
-    // 4등부터는 회색 메달 SVG
-    if (rank >= 4 && rank <= 10) {
-      return (
-        <div className="relative w-8 h-8 flex items-center justify-center">
-          <svg width="32" height="32" viewBox="0 0 32 32" className="absolute">
-            {/* 메달 리본 */}
-            <path d="M 16 3 L 11 8 L 16 11 L 21 8 Z" fill="#9CA3AF" opacity="0.8"/>
-            {/* 메달 원형 */}
-            <circle cx="16" cy="16" r="13" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="1.5"/>
-            <circle cx="16" cy="16" r="10" fill="#E5E7EB" stroke="#9CA3AF" strokeWidth="1"/>
-          </svg>
-          <span className="relative z-10 text-xs font-bold text-gray-700">
-            {rank}
-          </span>
-        </div>
-      );
-    }
-    return <span className="text-sm font-bold text-gray-600">#{rank}</span>;
+    // 4등부터는 회색 메달 SVG (모든 순위에 적용)
+    return (
+      <div className="relative w-8 h-8 flex items-center justify-center">
+        <svg width="32" height="32" viewBox="0 0 32 32" className="absolute">
+          {/* 메달 리본 */}
+          <path d="M 16 3 L 11 8 L 16 11 L 21 8 Z" fill="#9CA3AF" opacity="0.8"/>
+          {/* 메달 원형 */}
+          <circle cx="16" cy="16" r="13" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="1.5"/>
+          <circle cx="16" cy="16" r="10" fill="#E5E7EB" stroke="#9CA3AF" strokeWidth="1"/>
+        </svg>
+        <span className="relative z-10 text-xs font-bold text-gray-700">
+          {rank}
+        </span>
+      </div>
+    );
   };
 
   const getPeriodLabel = (p: RankingPeriod) => {
@@ -120,6 +126,36 @@ export default function RankingPage() {
       case 'all-time':
         return '전체';
     }
+  };
+
+  const handleUserClick = async (userId: string, userName: string) => {
+    setSelectedUser({ userId, userName });
+    setLoadingUserDetail(true);
+    
+    try {
+      const [userData, books, logs] = await Promise.all([
+        getUserData(userId),
+        getBooks(userId),
+        getReadingLogs(userId, undefined, 20), // 최근 20개만
+      ]);
+      
+      setSelectedUserData(userData);
+      setSelectedUserBooks(books);
+      // 공개된 감상만 필터링
+      const publicLogs = logs.filter(log => log.isPublic !== false);
+      setSelectedUserLogs(publicLogs);
+    } catch (error) {
+      console.error('사용자 상세 정보 로드 실패:', error);
+    } finally {
+      setLoadingUserDetail(false);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedUser(null);
+    setSelectedUserData(null);
+    setSelectedUserBooks([]);
+    setSelectedUserLogs([]);
   };
 
   if (authLoading || loading) {
@@ -200,12 +236,13 @@ export default function RankingPage() {
               return (
                 <div
                   key={item.userId}
+                  onClick={() => !isCurrentUser && handleUserClick(item.userId, item.userName)}
                   className={`flex items-center justify-between p-4 rounded-lg transition-colors ${
                     isCurrentUser
                       ? 'bg-primary-50 border-2 border-primary-300'
                       : index < 3
-                      ? 'bg-gray-50'
-                      : 'hover:bg-gray-50'
+                      ? 'bg-gray-50 cursor-pointer hover:bg-gray-100'
+                      : 'hover:bg-gray-50 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-center space-x-4">
@@ -233,6 +270,142 @@ export default function RankingPage() {
           </div>
         )}
       </Card>
+
+      {/* 사용자 상세 정보 모달 */}
+      {selectedUser && typeof window !== 'undefined' && createPortal(
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <h2 className="text-2xl font-bold">
+                  {selectedUser.userName}님의 독서 활동
+                </h2>
+                <button
+                  onClick={closeModal}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {loadingUserDetail ? (
+                <div className="text-center py-8 text-gray-500">로딩 중...</div>
+              ) : selectedUserData ? (
+                <div className="space-y-6">
+                  {/* 사용자 기본 정보 */}
+                  <Card>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">레벨</span>
+                        <span className="font-semibold">Lv.{selectedUserData.level}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">경험치</span>
+                        <span className="font-semibold">{selectedUserData.exp.toLocaleString()} EXP</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">읽은 책</span>
+                        <span className="font-semibold">{selectedUserData.totalBooksRead}권</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">읽은 페이지</span>
+                        <span className="font-semibold">{selectedUserData.totalPagesRead.toLocaleString()}페이지</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">연속 독서 일수</span>
+                        <span className="font-semibold">{selectedUserData.currentStreak}일</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  {/* 읽고 있는 책 */}
+                  <Card title={`읽고 있는 책 (${selectedUserBooks.filter(b => b.status === 'reading').length}권)`}>
+                    {selectedUserBooks.filter(b => b.status === 'reading').length === 0 ? (
+                      <p className="text-gray-500 text-center py-4">현재 읽고 있는 책이 없습니다.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {selectedUserBooks
+                          .filter(b => b.status === 'reading')
+                          .map((book) => {
+                            const progress = book.totalPages > 0 
+                              ? Math.round((book.currentPage / book.totalPages) * 100) 
+                              : 0;
+                            
+                            return (
+                              <div key={book.id} className="border-b border-gray-200 pb-3 last:border-0">
+                                <div className="flex justify-between items-start mb-2">
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold text-sm">{book.title}</h4>
+                                    <p className="text-xs text-gray-500">{book.author}</p>
+                                  </div>
+                                  <span className="text-xs text-gray-600">{progress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                  <div
+                                    className="bg-primary-600 h-2 rounded-full"
+                                    style={{ width: `${progress}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {book.currentPage} / {book.totalPages} 페이지
+                                </p>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </Card>
+
+                  {/* 오늘의 감상 (공개된 것만) */}
+                  <Card title={`오늘의 감상 (${selectedUserLogs.length}건)`}>
+                    {selectedUserLogs.length === 0 ? (
+                      <p className="text-gray-500 text-center py-4">공개된 감상이 없습니다.</p>
+                    ) : (
+                      <div className="space-y-4 max-h-[300px] overflow-y-auto">
+                        {selectedUserLogs.map((log) => {
+                          const book = selectedUserBooks.find(b => b.id === log.bookId);
+                          
+                          return (
+                            <div key={log.id} className="border-b border-gray-200 pb-3 last:border-0">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <p className="font-medium text-sm text-gray-900">
+                                    {book?.title || '알 수 없음'}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {log.date.toDate().toLocaleDateString('ko-KR')}
+                                  </p>
+                                </div>
+                                <span className="text-xs text-gray-600">
+                                  {log.pagesRead}페이지
+                                </span>
+                              </div>
+                              {log.notes && (
+                                <div className="mt-2 p-2 bg-gray-50 rounded">
+                                  <p className="text-sm text-gray-700">{log.notes}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Card>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">사용자 정보를 불러올 수 없습니다.</div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

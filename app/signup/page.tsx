@@ -64,8 +64,8 @@ export default function SignupPage() {
         updatedAt: Timestamp.now(),
       });
 
-      // 캐릭터 선택 페이지로 이동
-      router.push('/character/select');
+      // 별명 설정 페이지로 이동
+      router.push('/nickname/setup');
     } catch (err: any) {
       setError(err.message || '회원가입에 실패했습니다.');
     } finally {
