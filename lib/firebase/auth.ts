@@ -55,7 +55,7 @@ export const resetPassword = async (email: string): Promise<void> => {
   return sendPasswordResetEmail(auth!, email);
 };
 
-// Google 로그인
+// Google 로그인 (팝업 방식)
 export const signInWithGoogle = async (): Promise<UserCredential> => {
   checkAuth();
   const provider = new GoogleAuthProvider();
@@ -66,4 +66,3 @@ export const signInWithGoogle = async (): Promise<UserCredential> => {
 export const getCurrentUser = (): User | null => {
   return auth?.currentUser || null;
 };
-
