@@ -20,6 +20,8 @@ import { getUserDisplayName } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
+import { resetPassword } from '@/lib/firebase/auth';
+import { deleteUserData } from '@/lib/firebase/firestore';
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin: isAdminUser, adminLoading } = useAuth();
@@ -43,6 +45,8 @@ export default function AdminPage() {
   const [selectedBookReaders, setSelectedBookReaders] = useState<Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number; bookId: string }>>([]);
   const [readerLogs, setReaderLogs] = useState<Map<string, ReadingLog[]>>(new Map());
   const [loadingLogs, setLoadingLogs] = useState<Map<string, boolean>>(new Map());
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [deletingUser, setDeletingUser] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -296,6 +300,75 @@ export default function AdminPage() {
     }
   };
 
+  // 비밀번호 초기화
+  const handleResetPassword = async (userEmail: string, userId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 사용자 클릭 이벤트 전파 방지
+    
+    if (!confirm(`"${userEmail}" 사용자의 비밀번호를 초기화하시겠습니까?\n\n비밀번호 재설정 이메일이 해당 사용자에게 전송됩니다.`)) {
+      return;
+    }
+
+    setResettingPassword(userId);
+    try {
+      await resetPassword(userEmail);
+      alert(`비밀번호 재설정 이메일이 "${userEmail}"로 전송되었습니다.`);
+    } catch (error: any) {
+      console.error('비밀번호 초기화 실패:', error);
+      if (error.code === 'auth/user-not-found') {
+        alert('해당 이메일로 가입한 사용자를 찾을 수 없습니다.');
+      } else if (error.code === 'auth/invalid-email') {
+        alert('유효하지 않은 이메일 주소입니다.');
+      } else {
+        alert(`비밀번호 초기화에 실패했습니다: ${error.message}`);
+      }
+    } finally {
+      setResettingPassword(null);
+    }
+  };
+
+  // 사용자 강제 탈퇴
+  const handleDeleteUser = async (userData: UserData & { id: string }, e: React.MouseEvent) => {
+    e.stopPropagation(); // 사용자 클릭 이벤트 전파 방지
+    
+    const userName = getUserDisplayName(userData);
+    const userEmail = userData.email || '이메일 없음';
+    
+    if (!confirm(`"${userName}" (${userEmail}) 사용자를 강제로 탈퇴시키시겠습니까?\n\n⚠️ 경고: 이 작업은 되돌릴 수 없습니다.\n\n- 모든 사용자 데이터가 삭제됩니다\n- 모든 책, 독서 기록, 감상문이 삭제됩니다\n- 모든 뱃지가 삭제됩니다\n\n정말로 진행하시겠습니까?`)) {
+      return;
+    }
+
+    // 최종 확인
+    if (!confirm(`최종 확인: "${userName}" 사용자를 정말로 탈퇴시키시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setDeletingUser(userData.id);
+    try {
+      // Firestore의 모든 사용자 데이터 삭제
+      await deleteUserData(userData.id);
+      
+      // 사용자 목록에서 제거
+      setUsers(users.filter(u => u.id !== userData.id));
+      
+      // 선택된 사용자였다면 선택 해제
+      if (selectedUser?.id === userData.id) {
+        setSelectedUser(null);
+        setSelectedUserBooks([]);
+        setSelectedUserLogs([]);
+      }
+      
+      alert(`"${userName}" 사용자가 성공적으로 탈퇴 처리되었습니다.`);
+      
+      // 통계 새로고침
+      fetchData();
+    } catch (error: any) {
+      console.error('사용자 탈퇴 실패:', error);
+      alert(`사용자 탈퇴에 실패했습니다: ${error.message}`);
+    } finally {
+      setDeletingUser(null);
+    }
+  };
+
   if (authLoading || adminLoading || loading) {
     return (
       <div className="max-w-7xl mx-auto p-6">
@@ -359,6 +432,29 @@ export default function AdminPage() {
                           Lv.{userData.level} • {userData.exp.toLocaleString()} EXP
                         </div>
                       </div>
+                    </div>
+                    {/* 관리자 액션 버튼 */}
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                      {userData.email && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => handleResetPassword(userData.email, userData.id, e)}
+                          disabled={resettingPassword === userData.id}
+                          className="text-xs py-1 px-2 h-auto"
+                        >
+                          {resettingPassword === userData.id ? '전송 중...' : '비밀번호 초기화'}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => handleDeleteUser(userData, e)}
+                        disabled={deletingUser === userData.id}
+                        className="text-xs py-1 px-2 h-auto text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        {deletingUser === userData.id ? '탈퇴 중...' : '강제 탈퇴'}
+                      </Button>
                     </div>
                   </div>
                 ))}
