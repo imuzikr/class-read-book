@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,7 +28,10 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router, processingRedirect]);
 
-  // 페이지 로드 시 리다이렉트 결과 확인
+  // 리다이렉트 결과를 저장할 ref
+  const redirectResultRef = useRef<{ userId: string } | null>(null);
+
+  // 페이지 로드 시 리다이렉트 결과 확인 (한 번만 실행)
   useEffect(() => {
     const handleRedirectResult = async () => {
       // 이미 처리 중이면 중복 실행 방지
@@ -43,6 +46,7 @@ export default function LoginPage() {
         if (result && result.user) {
           const userId = result.user.uid;
           console.log('Google 로그인 성공, 사용자 ID:', userId);
+          redirectResultRef.current = { userId };
           
           // 사용자 데이터가 없으면 생성
           try {
@@ -69,42 +73,6 @@ export default function LoginPage() {
           } catch (dbError: any) {
             console.error('사용자 데이터 처리 실패:', dbError);
           }
-
-          // 인증 상태가 설정될 때까지 대기 (useAuth가 업데이트될 때까지)
-          console.log('인증 상태 업데이트 대기 중...');
-          let attempts = 0;
-          const maxAttempts = 20; // 최대 10초 대기
-          
-          const checkAuthState = setInterval(() => {
-            attempts++;
-            console.log(`인증 상태 확인 시도 ${attempts}/${maxAttempts}, 현재 사용자:`, user?.uid);
-            
-            if (user && user.uid === userId) {
-              console.log('인증 상태 확인됨, 페이지 이동 시작');
-              clearInterval(checkAuthState);
-              setProcessingRedirect(false);
-              
-              // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-              getUserData(userId).then((userData) => {
-                if (userData && !userData.character) {
-                  console.log('캐릭터 없음, 캐릭터 선택 페이지로 이동');
-                  router.push('/character/select');
-                } else {
-                  console.log('대시보드로 이동');
-                  router.push('/dashboard');
-                }
-              }).catch((error) => {
-                console.error('사용자 데이터 가져오기 실패:', error);
-                router.push('/dashboard');
-              });
-            } else if (attempts >= maxAttempts) {
-              // 10초 후에도 인증 상태가 업데이트되지 않으면 강제 이동
-              console.warn('인증 상태 업데이트 타임아웃, 강제 이동');
-              clearInterval(checkAuthState);
-              setProcessingRedirect(false);
-              router.push('/dashboard');
-            }
-          }, 500);
         } else {
           console.log('리다이렉트 결과 없음');
           setProcessingRedirect(false);
@@ -116,11 +84,35 @@ export default function LoginPage() {
       }
     };
 
-    // 인증 로딩이 완료된 후에만 실행
-    if (!authLoading) {
+    // 인증 로딩이 완료된 후에만 실행 (한 번만)
+    if (!authLoading && !redirectResultRef.current) {
       handleRedirectResult();
     }
-  }, [authLoading, router, processingRedirect, user]);
+  }, [authLoading, processingRedirect]);
+
+  // 인증 상태가 업데이트되면 리다이렉트 처리
+  useEffect(() => {
+    if (redirectResultRef.current && user && user.uid === redirectResultRef.current.userId && !processingRedirect) {
+      console.log('인증 상태 확인됨, 페이지 이동 시작', { userId: user.uid });
+      const userId = redirectResultRef.current.userId;
+      redirectResultRef.current = null; // 처리 완료 표시
+      setProcessingRedirect(false);
+      
+      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+      getUserData(userId).then((userData) => {
+        if (userData && !userData.character) {
+          console.log('캐릭터 없음, 캐릭터 선택 페이지로 이동');
+          router.push('/character/select');
+        } else {
+          console.log('대시보드로 이동');
+          router.push('/dashboard');
+        }
+      }).catch((error) => {
+        console.error('사용자 데이터 가져오기 실패:', error);
+        router.push('/dashboard');
+      });
+    }
+  }, [user, router, processingRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
