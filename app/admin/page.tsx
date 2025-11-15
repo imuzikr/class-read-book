@@ -572,7 +572,9 @@ export default function AdminPage() {
                   );
                 })}
               </tbody>
-            </table>
+                </table>
+              </div>
+            </div>
           </div>
         </Card>
       )}
