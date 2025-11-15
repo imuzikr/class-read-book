@@ -23,6 +23,18 @@ export default function LoginPage() {
   // 리다이렉트 결과를 저장할 ref (useEffect보다 먼저 선언)
   const redirectResultRef = useRef<{ userId: string; processed: boolean } | null>(null);
 
+  // 디버깅: user 상태 변경 시 로그 출력
+  useEffect(() => {
+    console.log('=== 인증 상태 디버깅 ===');
+    console.log('authLoading:', authLoading);
+    console.log('user:', user);
+    console.log('user?.uid:', user?.uid);
+    console.log('user?.email:', user?.email);
+    console.log('user?.displayName:', user?.displayName);
+    console.log('user?.providerData:', user?.providerData);
+    console.log('========================');
+  }, [user, authLoading]);
+
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (리다이렉트 처리 중이 아닐 때만)
   // 단, 리다이렉트 결과가 있는 경우는 제외 (별도 useEffect에서 처리)
   useEffect(() => {
