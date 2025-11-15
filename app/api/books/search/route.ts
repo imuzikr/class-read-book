@@ -37,18 +37,12 @@ export async function GET(request: NextRequest) {
     try {
       const apiUrl = `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`;
       
-      // 타임아웃을 위한 AbortController 생성
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
-      
+      // 네이버 API 호출 (타임아웃 없이 단순화)
       const response = await fetch(apiUrl, {
         headers: {
           'X-Naver-Client-Id': clientId,
           'X-Naver-Client-Secret': clientSecret,
         },
-        signal: controller.signal,
-      }).finally(() => {
-        clearTimeout(timeoutId);
       });
 
       if (!response.ok) {
@@ -105,18 +99,43 @@ export async function GET(request: NextRequest) {
     }
   } catch (error: any) {
     // 예상치 못한 모든 에러 처리
-    console.error('책 검색 API 예상치 못한 오류:', error?.message || String(error));
+    const errorMessage = error?.message || String(error);
+    const errorStack = error?.stack || 'No stack trace';
     
-    // 항상 200 상태 코드로 빈 결과 반환
-    return NextResponse.json(
-      {
-        items: [],
-        total: 0,
-        start: 0,
-        display: 0,
-      },
-      { status: 200 }
-    );
+    console.error('책 검색 API 예상치 못한 오류:', errorMessage);
+    console.error('에러 스택:', errorStack);
+    console.error('에러 타입:', typeof error);
+    console.error('전체 에러 객체:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // 항상 200 상태 코드로 빈 결과 반환 (500 에러 방지)
+    try {
+      return NextResponse.json(
+        {
+          items: [],
+          total: 0,
+          start: 0,
+          display: 0,
+        },
+        { status: 200 }
+      );
+    } catch (responseError: any) {
+      // NextResponse.json도 실패하는 경우 (매우 드묾)
+      console.error('NextResponse.json 실패:', responseError);
+      return new NextResponse(
+        JSON.stringify({
+          items: [],
+          total: 0,
+          start: 0,
+          display: 0,
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    }
   }
 }
 
