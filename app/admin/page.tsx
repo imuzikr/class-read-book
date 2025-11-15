@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'books'>('stats');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [selectedBookReaders, setSelectedBookReaders] = useState<Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !adminLoading) {
@@ -189,44 +190,53 @@ export default function AdminPage() {
     }
   };
 
+  // 선택된 책이 변경될 때 사용자 목록 가져오기
+  useEffect(() => {
+    if (selectedBook) {
+      const fetchReaders = async () => {
+        // 같은 제목+저자의 책을 읽는 모든 사용자 찾기
+        const bookKey = `${selectedBook.title.trim().toLowerCase()}_${selectedBook.author.trim().toLowerCase()}`;
+        const allBooksWithSameTitle = books.filter(b => 
+          `${b.title.trim().toLowerCase()}_${b.author.trim().toLowerCase()}` === bookKey
+        );
+        
+        // 각 사용자별 상세 정보 수집
+        const readersDetails = await Promise.all(
+          allBooksWithSameTitle.map(async (b) => {
+            const userData = users.find(u => u.id === b.userId);
+            if (userData) {
+              const progress = b.totalPages > 0 
+                ? Math.round((b.currentPage / b.totalPages) * 100) 
+                : 0;
+              
+              return {
+                userId: b.userId,
+                userName: userData.displayName || userData.name || '이름 없음',
+                progress,
+                status: b.status,
+                currentPage: b.currentPage,
+                totalPages: b.totalPages,
+              };
+            }
+            return null;
+          })
+        );
+        
+        const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>;
+        setSelectedBookReaders(validReaders);
+        setIsModalOpen(true);
+      };
+      
+      fetchReaders();
+    } else {
+      setIsModalOpen(false);
+      setSelectedBookReaders([]);
+    }
+  }, [selectedBook, books, users]);
+
   // 책 클릭 시 해당 책을 읽고 있는 사용자들의 상세 정보 가져오기
-  const handleBookClick = async (book: Book) => {
-    console.log('책 클릭됨:', book.title);
+  const handleBookClick = (book: Book) => {
     setSelectedBook(book);
-    
-    // 같은 제목+저자의 책을 읽는 모든 사용자 찾기
-    const bookKey = `${book.title.trim().toLowerCase()}_${book.author.trim().toLowerCase()}`;
-    const allBooksWithSameTitle = books.filter(b => 
-      `${b.title.trim().toLowerCase()}_${b.author.trim().toLowerCase()}` === bookKey
-    );
-    
-    console.log('같은 책을 읽는 사용자 수:', allBooksWithSameTitle.length);
-    
-    // 각 사용자별 상세 정보 수집
-    const readersDetails = await Promise.all(
-      allBooksWithSameTitle.map(async (b) => {
-        const userData = users.find(u => u.id === b.userId);
-        if (userData) {
-          const progress = b.totalPages > 0 
-            ? Math.round((b.currentPage / b.totalPages) * 100) 
-            : 0;
-          
-          return {
-            userId: b.userId,
-            userName: userData.displayName || userData.name || '이름 없음',
-            progress,
-            status: b.status,
-            currentPage: b.currentPage,
-            totalPages: b.totalPages,
-          };
-        }
-        return null;
-      })
-    );
-    
-    const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>;
-    console.log('읽는 사용자 목록:', validReaders);
-    setSelectedBookReaders(validReaders);
   };
 
   if (authLoading || adminLoading || loading) {
@@ -537,12 +547,12 @@ export default function AdminPage() {
       </div>
 
       {/* 책 상세 모달 */}
-      {selectedBook && (
+      {isModalOpen && selectedBook && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
           onClick={() => {
             setSelectedBook(null);
-            setSelectedBookReaders([]);
+            setIsModalOpen(false);
           }}
         >
           <div 
@@ -587,7 +597,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => {
                     setSelectedBook(null);
-                    setSelectedBookReaders([]);
+                    setIsModalOpen(false);
                   }}
                   className="text-gray-400 hover:text-gray-600 text-2xl"
                 >
