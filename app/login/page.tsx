@@ -20,12 +20,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [processingRedirect, setProcessingRedirect] = useState(false);
 
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트
+  // 이미 로그인된 사용자는 대시보드로 리다이렉트 (리다이렉트 처리 중이 아닐 때만)
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !processingRedirect) {
+      console.log('이미 로그인된 사용자 감지, 대시보드로 이동');
       router.push('/dashboard');
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, processingRedirect]);
 
   // 페이지 로드 시 리다이렉트 결과 확인
   useEffect(() => {
