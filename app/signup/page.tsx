@@ -154,6 +154,15 @@ export default function SignupPage() {
     }
   };
 
+  // 인증 로딩 중이거나 리다이렉트 처리 중이면 로딩 표시
+  if (authLoading || processingRedirect) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-gray-400">회원가입 처리 중...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto mt-12">
       <Card title="회원가입">
