@@ -3,7 +3,7 @@
 // 이 페이지는 사용자 인증과 동적 데이터가 필요하므로 동적 렌더링으로 설정
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getBook, createReview, type Book } from '@/lib/firebase/firestore';
@@ -12,7 +12,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 
-export default function NewReviewPage() {
+function NewReviewContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookIdParam = searchParams.get('bookId');
@@ -232,3 +232,10 @@ export default function NewReviewPage() {
   );
 }
 
+export default function NewReviewPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">로딩 중...</div>}>
+      <NewReviewContent />
+    </Suspense>
+  );
+}

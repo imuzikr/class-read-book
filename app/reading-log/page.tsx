@@ -3,7 +3,7 @@
 // 이 페이지는 사용자 인증과 동적 데이터가 필요하므로 동적 렌더링으로 설정
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getBooks, createReadingLog, getReadingLogs, type Book, type ReadingLog } from '@/lib/firebase/firestore';
@@ -14,7 +14,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 
-export default function ReadingLogPage() {
+function ReadingLogContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookIdParam = searchParams.get('bookId');
@@ -570,3 +570,10 @@ export default function ReadingLogPage() {
   );
 }
 
+export default function ReadingLogPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">로딩 중...</div>}>
+      <ReadingLogContent />
+    </Suspense>
+  );
+}
