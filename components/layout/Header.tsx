@@ -45,11 +45,18 @@ export default function Header() {
     <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl">📚</span>
-            <span className="text-xl font-bold text-primary-600 hidden sm:inline">우리 반 독서 대장</span>
-            <span className="text-lg font-bold text-primary-600 sm:hidden">독서 대장</span>
-          </Link>
+          <div className="flex items-center space-x-3">
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="text-2xl">📚</span>
+              <span className="text-xl font-bold text-primary-600 hidden sm:inline">우리 반 독서 대장</span>
+              <span className="text-lg font-bold text-primary-600 sm:hidden">독서 대장</span>
+            </Link>
+            {user && userDisplayName && (
+              <span className="text-sm text-gray-600 hidden md:inline border-l border-gray-300 pl-3">
+                {userDisplayName}
+              </span>
+            )}
+          </div>
 
           {/* 데스크톱 네비게이션 */}
           <nav className="hidden lg:flex items-center space-x-4">
@@ -84,7 +91,6 @@ export default function Header() {
                   </Link>
                 )}
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-gray-600 hidden xl:inline">{userDisplayName || user.displayName || user.email}</span>
                   <Button variant="outline" size="sm" onClick={handleLogout}>
                     로그아웃
                   </Button>
