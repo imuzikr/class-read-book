@@ -19,11 +19,18 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           className={cn(
             'w-full px-4 py-2 border border-gray-300 rounded-lg',
+            'text-gray-900 bg-white text-base',
             'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
-            'disabled:bg-gray-100 disabled:cursor-not-allowed',
+            'disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500',
+            'placeholder:text-gray-400',
+            'appearance-none',
             error && 'border-red-500 focus:ring-red-500',
             className
           )}
+          style={{
+            WebkitAppearance: 'none',
+            MozAppearance: 'textfield',
+          }}
           {...props}
         />
         {error && (
