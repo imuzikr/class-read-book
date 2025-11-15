@@ -8,61 +8,101 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const query = searchParams.get('q');
-
-  if (!query) {
-    return NextResponse.json({ error: '검색어가 필요합니다.' }, { status: 400 });
-  }
-
+  // 모든 에러를 잡아서 빈 결과를 반환하도록 최상위 try-catch
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const query = searchParams.get('q');
+
+    if (!query) {
+      return NextResponse.json({ error: '검색어가 필요합니다.' }, { status: 400 });
+    }
+
     const clientId = process.env.NAVER_CLIENT_ID;
     const clientSecret = process.env.NAVER_CLIENT_SECRET;
 
+    // 네이버 API 키가 없으면 빈 결과 반환
     if (!clientId || !clientSecret) {
-      console.error('네이버 API 키가 설정되지 않았습니다.');
-      console.error('NAVER_CLIENT_ID:', clientId ? '설정됨' : '없음');
-      console.error('NAVER_CLIENT_SECRET:', clientSecret ? '설정됨' : '없음');
-      
-      // 네이버 API 키가 없어도 Google Books API만 사용할 수 있도록 빈 결과 반환
-      return NextResponse.json({
-        items: [],
-        total: 0,
-        start: 0,
-        display: 0,
-      });
+      console.log('네이버 API 키가 설정되지 않았습니다. 빈 결과 반환.');
+      return NextResponse.json(
+        {
+          items: [],
+          total: 0,
+          start: 0,
+          display: 0,
+        },
+        { status: 200 }
+      );
     }
 
-    const apiUrl = `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`;
-    
-    const response = await fetch(apiUrl, {
-      headers: {
-        'X-Naver-Client-Id': clientId,
-        'X-Naver-Client-Secret': clientSecret,
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`네이버 API 오류 (${response.status}):`, errorText);
+    try {
+      const apiUrl = `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`;
       
-      // 네이버 API 실패 시 빈 결과 반환 (Google Books API는 여전히 사용 가능)
-      return NextResponse.json({
-        items: [],
-        total: 0,
-        start: 0,
-        display: 0,
+      const response = await fetch(apiUrl, {
+        headers: {
+          'X-Naver-Client-Id': clientId,
+          'X-Naver-Client-Secret': clientSecret,
+        },
+        // 타임아웃 설정
+        signal: AbortSignal.timeout(10000), // 10초 타임아웃
       });
-    }
 
-    const data = await response.json();
-    return NextResponse.json(data);
+      if (!response.ok) {
+        let errorText = '';
+        try {
+          errorText = await response.text();
+        } catch (e) {
+          // 응답 본문 읽기 실패는 무시
+        }
+        console.warn(`네이버 API 오류 (${response.status}):`, errorText || '응답 본문 없음');
+        
+        // 네이버 API 실패 시 빈 결과 반환
+        return NextResponse.json(
+          {
+            items: [],
+            total: 0,
+            start: 0,
+            display: 0,
+          },
+          { status: 200 }
+        );
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('네이버 API 응답 JSON 파싱 오류:', jsonError);
+        return NextResponse.json(
+          {
+            items: [],
+            total: 0,
+            start: 0,
+            display: 0,
+          },
+          { status: 200 }
+        );
+      }
+
+      return NextResponse.json(data, { status: 200 });
+    } catch (fetchError: any) {
+      // 네이버 API 호출 실패 (네트워크 오류, 타임아웃 등)
+      console.warn('네이버 API 호출 실패:', fetchError?.message || String(fetchError));
+      
+      return NextResponse.json(
+        {
+          items: [],
+          total: 0,
+          start: 0,
+          display: 0,
+        },
+        { status: 200 }
+      );
+    }
   } catch (error: any) {
-    console.error('책 검색 API 오류:', error);
-    console.error('에러 상세:', error?.message || String(error), error?.stack);
+    // 예상치 못한 모든 에러 처리
+    console.error('책 검색 API 예상치 못한 오류:', error?.message || String(error));
     
-    // 에러 발생 시 빈 결과 반환 (앱이 완전히 중단되지 않도록)
-    // 항상 200 상태 코드로 반환하여 클라이언트가 정상적으로 처리할 수 있도록 함
+    // 항상 200 상태 코드로 빈 결과 반환
     return NextResponse.json(
       {
         items: [],
