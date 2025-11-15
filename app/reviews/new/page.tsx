@@ -87,8 +87,6 @@ export default function NewReviewPage() {
         bookId: bookIdParam,
         content: formData.content.trim(),
         rating,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
       });
 
       // 경험치 추가 및 뱃지 체크

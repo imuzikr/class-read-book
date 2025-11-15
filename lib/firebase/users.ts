@@ -56,10 +56,10 @@ export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
       where('__name__', 'in', chunk)
     );
     const querySnapshot = await getDocsQuery(q);
-    allUsers.push(...querySnapshot.docs.map((doc) => ({
+    allUsers.push(...(querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-    })) as UserData[]);
+    })) as unknown as UserData[]));
   }
 
   return allUsers;

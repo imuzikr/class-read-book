@@ -37,14 +37,14 @@ export default function ReviewsPage() {
         reviewsData.map(async (review) => {
           try {
             const book = await getBook(review.bookId);
-            return { ...review, book };
+            return { ...review, book: book || undefined };
           } catch {
-            return review;
+            return { ...review, book: undefined };
           }
         })
       );
 
-      setReviews(reviewsWithBooks);
+      setReviews(reviewsWithBooks as (Review & { book?: Book })[]);
     } catch (error) {
       console.error('감상문 목록 로드 실패:', error);
     } finally {

@@ -82,6 +82,9 @@ export interface Review {
 
 // 사용자 데이터 CRUD
 export const getUserData = async (userId: string): Promise<UserData | null> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'users', userId);
   const docSnap = await getDoc(docRef);
   
@@ -92,6 +95,9 @@ export const getUserData = async (userId: string): Promise<UserData | null> => {
 };
 
 export const createUserData = async (userId: string, userData: Partial<UserData>): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'users', userId);
   const now = Timestamp.now();
   
@@ -114,6 +120,9 @@ export const createUserData = async (userId: string, userData: Partial<UserData>
 };
 
 export const updateUserData = async (userId: string, updates: Partial<UserData>): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'users', userId);
   await updateDoc(docRef, {
     ...updates,
@@ -186,6 +195,9 @@ export const checkDuplicateBook = async (
 };
 
 export const getBook = async (bookId: string): Promise<Book | null> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'books', bookId);
   const docSnap = await getDoc(docRef);
   
@@ -196,6 +208,9 @@ export const getBook = async (bookId: string): Promise<Book | null> => {
 };
 
 export const createBook = async (book: Omit<Book, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const now = Timestamp.now();
   const docRef = await addDoc(collection(db, 'books'), {
     ...book,
@@ -227,6 +242,9 @@ export const updateBook = async (bookId: string, updates: Partial<Book>): Promis
 };
 
 export const deleteBook = async (bookId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'books', bookId);
   await deleteDoc(docRef);
 };
@@ -291,6 +309,9 @@ export const getReadingLogs = async (
 export const createReadingLog = async (
   log: Omit<ReadingLog, 'id' | 'createdAt'>
 ): Promise<string> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = await addDoc(collection(db, 'readingLogs'), {
     ...log,
     createdAt: Timestamp.now(),
@@ -300,6 +321,9 @@ export const createReadingLog = async (
 
 // 감상문 CRUD
 export const getReviews = async (userId: string): Promise<Review[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const q = query(
     collection(db, 'reviews'),
     where('userId', '==', userId),
@@ -314,6 +338,9 @@ export const getReviews = async (userId: string): Promise<Review[]> => {
 };
 
 export const getReview = async (reviewId: string): Promise<Review | null> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'reviews', reviewId);
   const docSnap = await getDoc(docRef);
   
@@ -326,6 +353,9 @@ export const getReview = async (reviewId: string): Promise<Review | null> => {
 export const createReview = async (
   review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const now = Timestamp.now();
   const docRef = await addDoc(collection(db, 'reviews'), {
     ...review,
@@ -336,6 +366,9 @@ export const createReview = async (
 };
 
 export const updateReview = async (reviewId: string, updates: Partial<Review>): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'reviews', reviewId);
   await updateDoc(docRef, {
     ...updates,
@@ -344,12 +377,18 @@ export const updateReview = async (reviewId: string, updates: Partial<Review>): 
 };
 
 export const deleteReview = async (reviewId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const docRef = doc(db, 'reviews', reviewId);
   await deleteDoc(docRef);
 };
 
 // 사용자 뱃지 CRUD
 export const getUserBadges = async (userId: string): Promise<string[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
   const q = query(
     collection(db, 'userBadges'),
     where('userId', '==', userId)

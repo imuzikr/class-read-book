@@ -36,7 +36,7 @@ export default function ProfilePage() {
       setUserData(data);
       
       if (data?.character?.animalType) {
-        setSelectedAnimal(data.character.animalType);
+        setSelectedAnimal(data.character.animalType as AnimalType);
       }
     } catch (error) {
       console.error('사용자 데이터 로드 실패:', error);

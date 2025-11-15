@@ -87,7 +87,7 @@ export default function AdminDebugPage() {
         <div className="space-y-3 text-sm">
           <div>
             <p className="font-semibold mb-2">1. Firestore에 admins 컬렉션이 있는지 확인:</p>
-            <p className="text-gray-600">Firebase Console → Firestore Database → 데이터 탭에서 'admins' 컬렉션 확인</p>
+            <p className="text-gray-600">Firebase Console → Firestore Database → 데이터 탭에서 &apos;admins&apos; 컬렉션 확인</p>
           </div>
 
           <div>

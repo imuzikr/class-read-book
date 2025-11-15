@@ -55,6 +55,77 @@ export default function ReadingLogPage() {
     }
   }, [bookIdParam]);
 
+  // 실시간 검증 함수 (useEffect보다 먼저 선언)
+  const validateField = useCallback((fieldName: 'startPage' | 'endPage' | 'notes', value: string, currentFormData = formData) => {
+    const selectedBook = books.find(b => b.id === currentFormData.bookId);
+    
+    // 디버깅: 책 정보 확인
+    if (fieldName === 'endPage' && value && selectedBook) {
+      const endPage = parseInt(value);
+      console.log('검증 중:', {
+        endPage,
+        totalPages: selectedBook.totalPages,
+        bookTitle: selectedBook.title,
+        exceeds: endPage > selectedBook.totalPages
+      });
+    }
+    
+    setFieldErrors(prevErrors => {
+      const errors = { ...prevErrors };
+
+      if (fieldName === 'startPage') {
+        const startPage = parseInt(value);
+        if (!value) {
+          delete errors.startPage;
+        } else if (isNaN(startPage) || startPage < 1) {
+          errors.startPage = '시작 페이지를 올바르게 입력해주세요.';
+        } else if (selectedBook && startPage > selectedBook.totalPages) {
+          errors.startPage = `총 페이지 수(${selectedBook.totalPages}페이지)를 초과할 수 없습니다.`;
+        } else {
+          delete errors.startPage;
+        }
+        
+        // 마지막 페이지와의 관계도 확인
+        if (currentFormData.endPage) {
+          const endPage = parseInt(currentFormData.endPage);
+          if (!isNaN(startPage) && !isNaN(endPage) && endPage < startPage) {
+            errors.endPage = '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.';
+          } else if (prevErrors.endPage === '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.') {
+            delete errors.endPage;
+          }
+        }
+      } else if (fieldName === 'endPage') {
+        const endPage = parseInt(value);
+        if (!value) {
+          delete errors.endPage;
+        } else if (isNaN(endPage) || endPage < 1) {
+          errors.endPage = '마지막 페이지를 올바르게 입력해주세요.';
+        } else if (!selectedBook) {
+          delete errors.endPage;
+        } else if (endPage > selectedBook.totalPages) {
+          errors.endPage = `값은 ${selectedBook.totalPages} 이하여야 합니다.`;
+        } else if (currentFormData.startPage) {
+          const startPage = parseInt(currentFormData.startPage);
+          if (!isNaN(startPage) && endPage < startPage) {
+            errors.endPage = '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.';
+          } else {
+            delete errors.endPage;
+          }
+        } else {
+          delete errors.endPage;
+        }
+      } else if (fieldName === 'notes') {
+        if (value && !value.trim()) {
+          errors.notes = '오늘의 감상을 작성해주세요.';
+        } else {
+          delete errors.notes;
+        }
+      }
+
+      return errors;
+    });
+  }, [books, formData]);
+
   // 책이 변경되거나 페이지 값이 변경되면 검증 다시 실행
   useEffect(() => {
     if (formData.bookId && formData.startPage) {
@@ -86,80 +157,6 @@ export default function ReadingLogPage() {
       setLoading(false);
     }
   };
-
-  // 실시간 검증 함수
-  const validateField = useCallback((fieldName: 'startPage' | 'endPage' | 'notes', value: string, currentFormData = formData) => {
-    const selectedBook = books.find(b => b.id === currentFormData.bookId);
-    
-    // 디버깅: 책 정보 확인
-    if (fieldName === 'endPage' && value && selectedBook) {
-      const endPage = parseInt(value);
-      console.log('검증 중:', {
-        endPage,
-        totalPages: selectedBook.totalPages,
-        bookTitle: selectedBook.title,
-        exceeds: endPage > selectedBook.totalPages
-      });
-    }
-    
-    setFieldErrors(prevErrors => {
-      const errors = { ...prevErrors };
-
-      if (fieldName === 'startPage') {
-        const startPage = parseInt(value);
-        if (value && (isNaN(startPage) || startPage < 1)) {
-          errors.startPage = '시작 페이지를 올바르게 입력해주세요.';
-        } else if (value && selectedBook && startPage > selectedBook.totalPages) {
-          errors.startPage = `총 페이지 수(${selectedBook.totalPages}페이지)를 초과할 수 없습니다.`;
-        } else {
-          delete errors.startPage;
-        }
-        
-        // 마지막 페이지와의 관계도 확인
-        if (currentFormData.endPage) {
-          const endPage = parseInt(currentFormData.endPage);
-          if (!isNaN(startPage) && !isNaN(endPage) && endPage < startPage) {
-            errors.endPage = '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.';
-          } else if (prevErrors.endPage === '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.') {
-            delete errors.endPage;
-          }
-        }
-      } else if (fieldName === 'endPage') {
-        const endPage = parseInt(value);
-        if (!value) {
-          // 값이 없으면 오류 삭제
-          delete errors.endPage;
-        } else if (isNaN(endPage) || endPage < 1) {
-          errors.endPage = '마지막 페이지를 올바르게 입력해주세요.';
-        } else if (!selectedBook) {
-          // 책이 선택되지 않았으면 일단 오류 삭제 (나중에 책 선택 시 재검증)
-          delete errors.endPage;
-        } else if (endPage > selectedBook.totalPages) {
-          // 총 페이지 수 초과 검증 (우선순위 높음)
-          errors.endPage = `값은 ${selectedBook.totalPages} 이하여야 합니다.`;
-        } else if (currentFormData.startPage) {
-          const startPage = parseInt(currentFormData.startPage);
-          if (!isNaN(startPage) && endPage < startPage) {
-            errors.endPage = '마지막 페이지는 시작 페이지보다 크거나 같아야 합니다.';
-          } else {
-            // 모든 검증 통과
-            delete errors.endPage;
-          }
-        } else {
-          // 모든 검증 통과
-          delete errors.endPage;
-        }
-      } else if (fieldName === 'notes') {
-        if (value && !value.trim()) {
-          errors.notes = '오늘의 감상을 작성해주세요.';
-        } else {
-          delete errors.notes;
-        }
-      }
-
-      return errors;
-    });
-  }, [books, formData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -237,7 +234,6 @@ export default function ReadingLogPage() {
         endPage,
         notes,
         expGained,
-        createdAt: Timestamp.now(),
       });
 
       // 책의 현재 페이지 업데이트

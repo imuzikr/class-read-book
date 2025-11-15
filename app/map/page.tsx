@@ -130,7 +130,7 @@ export default function StatusBarPage() {
 
       // 모든 Promise를 병렬로 실행하고 결과 수집
       const userStatusResults = await Promise.all(userStatusPromises);
-      const userStatuses = userStatusResults.filter((status): status is UserStatus => status !== null);
+      const userStatuses = userStatusResults.filter((status) => status !== null) as UserStatus[];
 
       // 경험치 순으로 정렬 (내림차순) - 순위 계산을 위해
       userStatuses.sort((a, b) => {
