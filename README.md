@@ -74,4 +74,3 @@ class-read-book/
 - 🏅 랭킹 시스템
 
 자세한 내용은 [PROJECT_PLAN.md](./PROJECT_PLAN.md)를 참고하세요.
-
