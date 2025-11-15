@@ -53,8 +53,9 @@ export const getBookCoverImage = async (
             cleanAuthor.toLowerCase().includes(a.toLowerCase())
           );
           
-          // 제목이 유사하고 저자가 매칭되면 이미지 반환
-          if (bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle)) {
+          // 제목이 유사하고 (저자가 없거나 매칭되면) 이미지 반환
+          const titleMatch = bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle);
+          if (titleMatch && authorMatch) {
             if (volumeInfo.imageLinks) {
               const imageUrl = volumeInfo.imageLinks.thumbnail || 
                               volumeInfo.imageLinks.smallThumbnail ||
