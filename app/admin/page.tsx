@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -548,10 +549,10 @@ export default function AdminPage() {
       </div>
 
       {/* 책 상세 모달 */}
-      {selectedBook && (
+      {typeof window !== 'undefined' && selectedBook && createPortal(
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
-          style={{ zIndex: 9999 }}
+          style={{ zIndex: 9999, position: 'fixed' }}
           onClick={() => {
             setSelectedBook(null);
             setIsModalOpen(false);
@@ -597,7 +598,8 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedBook(null);
                     setIsModalOpen(false);
                   }}
@@ -669,7 +671,8 @@ export default function AdminPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
