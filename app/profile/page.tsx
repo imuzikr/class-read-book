@@ -151,7 +151,7 @@ export default function ProfilePage() {
       const { deleteUser: firebaseDeleteUser } = await import('firebase/auth');
       const { auth } = await import('@/lib/firebase/config');
       
-      if (auth.currentUser) {
+      if (auth && auth.currentUser) {
         await firebaseDeleteUser(auth.currentUser);
       }
 
