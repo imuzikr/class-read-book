@@ -1,8 +1,5 @@
 'use client';
 
-// 이 페이지는 사용자 인증과 동적 데이터가 필요하므로 동적 렌더링으로 설정
-export const dynamic = 'force-dynamic';
-
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
