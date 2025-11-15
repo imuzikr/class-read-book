@@ -37,13 +37,18 @@ export async function GET(request: NextRequest) {
     try {
       const apiUrl = `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`;
       
+      // 타임아웃을 위한 AbortController 생성
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+      
       const response = await fetch(apiUrl, {
         headers: {
           'X-Naver-Client-Id': clientId,
           'X-Naver-Client-Secret': clientSecret,
         },
-        // 타임아웃 설정
-        signal: AbortSignal.timeout(10000), // 10초 타임아웃
+        signal: controller.signal,
+      }).finally(() => {
+        clearTimeout(timeoutId);
       });
 
       if (!response.ok) {
