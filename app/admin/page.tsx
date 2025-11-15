@@ -193,6 +193,7 @@ export default function AdminPage() {
   // 선택된 책이 변경될 때 사용자 목록 가져오기
   useEffect(() => {
     if (selectedBook) {
+      setIsModalOpen(true);
       const fetchReaders = async () => {
         // 같은 제목+저자의 책을 읽는 모든 사용자 찾기
         const bookKey = `${selectedBook.title.trim().toLowerCase()}_${selectedBook.author.trim().toLowerCase()}`;
@@ -224,7 +225,6 @@ export default function AdminPage() {
         
         const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>;
         setSelectedBookReaders(validReaders);
-        setIsModalOpen(true);
       };
       
       fetchReaders();
@@ -236,6 +236,7 @@ export default function AdminPage() {
 
   // 책 클릭 시 해당 책을 읽고 있는 사용자들의 상세 정보 가져오기
   const handleBookClick = (book: Book) => {
+    console.log('책 클릭됨:', book.title);
     setSelectedBook(book);
   };
 
@@ -547,9 +548,10 @@ export default function AdminPage() {
       </div>
 
       {/* 책 상세 모달 */}
-      {isModalOpen && selectedBook && (
+      {selectedBook && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          style={{ zIndex: 9999 }}
           onClick={() => {
             setSelectedBook(null);
             setIsModalOpen(false);
