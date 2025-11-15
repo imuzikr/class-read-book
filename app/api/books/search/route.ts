@@ -5,7 +5,6 @@ import { NextRequest, NextResponse } from 'next/server';
  * 클라이언트에서 직접 네이버 API를 호출할 수 없으므로 서버 사이드에서 처리합니다.
  */
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
   // 모든 에러를 잡아서 빈 결과를 반환하도록 최상위 try-catch
