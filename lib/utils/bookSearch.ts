@@ -1,18 +1,4 @@
-/**
- * 책 검색 유틸리티
- * 네이버 책 검색 API를 사용하여 책 정보를 검색합니다.
- */
-
-export interface BookSearchResult {
-  title: string;
-  author: string;
-  publisher: string;
-  pubdate: string;
-  isbn: string;
-  description: string;
-  image?: string;
-  totalPages?: number;
-}
+import type { BookSearchResult } from './bookSearch';
 
 export interface BookSearchResponse {
   items: Array<{
@@ -21,16 +7,17 @@ export interface BookSearchResponse {
     publisher: string;
     pubdate: string;
     isbn: string;
-    description: string;
+    description?: string;
     image?: string;
-    price?: string;
-    discount?: string;
-    link?: string;
   }>;
+  total: number;
+  start: number;
+  display: number;
 }
 
 /**
  * 네이버 책 검색 API를 사용하여 책을 검색합니다.
+ * 페이지 수는 빠르게 설명에서 추출하고, Google Books API 호출은 최소화합니다.
  * @param query 검색어 (책 제목 또는 저자)
  * @returns 검색 결과 배열
  */
@@ -81,87 +68,36 @@ export const searchBooks = async (query: string): Promise<BookSearchResult[]> =>
       return [];
     }
     
-    // 각 아이템에 대해 ISBN으로 페이지 수를 가져오기 (병렬 처리)
-    const itemsWithPages = await Promise.all(
-      data.items.map(async (item) => {
-        // 페이지 수 추출 시도
-        let totalPages: number | undefined;
+    // 빠르게 기본 정보만 반환 (설명에서 페이지 수 추출)
+    return data.items.map((item) => {
+      // 페이지 수 추출 시도 (설명에서 빠르게 추출)
+      let totalPages: number | undefined;
+      
+      if (item.description) {
+        // 다양한 패턴으로 페이지 수 추출
+        const patterns = [
+          /(\d+)\s*페이지/i,           // "320페이지", "320 페이지"
+          /페이지\s*[:：]\s*(\d+)/i,   // "페이지: 320", "페이지 320"
+          /(\d+)\s*쪽/i,                // "320쪽", "320 쪽"
+          /쪽\s*[:：]\s*(\d+)/i,        // "쪽: 320"
+          /(\d+)\s*p/i,                 // "320p", "320 p"
+          /총\s*(\d+)\s*페이지/i,      // "총 320페이지"
+          /전체\s*(\d+)\s*페이지/i,     // "전체 320페이지"
+        ];
         
-        // 먼저 ISBN으로 Google Books API에서 페이지 수 가져오기 시도
-        if (item.isbn) {
-          try {
-            // ISBN이 여러 개일 수 있으므로 첫 번째 ISBN 사용
-            const isbnList = item.isbn.split(/\s+/).filter(isbn => isbn.trim());
-            const firstIsbn = isbnList[0] || item.isbn;
-            
-            console.log(`책 "${item.title}" ISBN으로 페이지 수 가져오기 시도:`, firstIsbn);
-            const { getBookInfoByIsbn } = await import('@/lib/utils/bookInfo');
-            const bookInfo = await getBookInfoByIsbn(firstIsbn);
-            if (bookInfo?.pageCount) {
-              console.log(`책 "${item.title}" 페이지 수 가져오기 성공:`, bookInfo.pageCount);
-              totalPages = bookInfo.pageCount;
-            } else {
-              console.log(`책 "${item.title}" Google Books API에서 페이지 수를 찾을 수 없음`);
-            }
-          } catch (error) {
-            console.error(`책 "${item.title}" ISBN으로 페이지 수 가져오기 실패:`, error);
-          }
-        }
-        
-        // ISBN으로 가져오지 못한 경우, 제목과 저자로 Google Books API 시도
-        if (!totalPages) {
-          try {
-            console.log(`책 "${item.title}" 제목과 저자로 페이지 수 가져오기 시도`);
-            const { getBookInfoByTitleAndAuthor } = await import('@/lib/utils/bookInfo');
-            const cleanTitle = item.title.replace(/<[^>]*>/g, '').trim();
-            const cleanAuthor = item.author.replace(/<[^>]*>/g, '').split(/[|^/]/)[0].trim();
-            if (cleanTitle && cleanAuthor) {
-              const bookInfo = await getBookInfoByTitleAndAuthor(cleanTitle, cleanAuthor);
-              if (bookInfo?.pageCount) {
-                console.log(`책 "${item.title}" 제목/저자로 페이지 수 가져오기 성공:`, bookInfo.pageCount);
-                totalPages = bookInfo.pageCount;
-              }
-            }
-          } catch (error) {
-            console.error(`책 "${item.title}" 제목/저자로 페이지 수 가져오기 실패:`, error);
-          }
-        }
-        
-        // Google Books API에서 가져오지 못한 경우, 설명에서 추출 시도
-        if (!totalPages) {
-          // 검색할 텍스트: 제목 + 설명
-          const searchText = `${item.title} ${item.description || ''}`;
-          
-          // 다양한 패턴으로 페이지 수 추출 시도
-          const patterns = [
-            /(\d+)\s*페이지/i,           // "320페이지", "320 페이지"
-            /(\d+)\s*p/i,                 // "320p", "320 p"
-            /(\d+)\s*쪽/i,                // "320쪽", "320 쪽"
-            /페이지[:\s]*(\d+)/i,         // "페이지: 320", "페이지 320"
-            /쪽수[:\s]*(\d+)/i,           // "쪽수: 320"
-            /총\s*(\d+)\s*페이지/i,      // "총 320페이지"
-            /전체\s*(\d+)\s*페이지/i,     // "전체 320페이지"
-          ];
-          
-          for (const pattern of patterns) {
-            const match = searchText.match(pattern);
-            if (match) {
-              const pages = parseInt(match[1]);
-              // 합리적인 페이지 수 범위 체크 (10 ~ 10000)
-              if (pages >= 10 && pages <= 10000) {
-                totalPages = pages;
-                break;
-              }
+        for (const pattern of patterns) {
+          const match = item.description.match(pattern);
+          if (match) {
+            const pages = parseInt(match[1]);
+            // 합리적인 페이지 수 범위 체크 (10 ~ 10000)
+            if (pages >= 10 && pages <= 10000) {
+              totalPages = pages;
+              break;
             }
           }
         }
-        
-        return { ...item, totalPages };
-      })
-    );
-    
-    return itemsWithPages.map((item) => {
-
+      }
+      
       // 저자명 처리: 지은이만 추출
       let author = item.author.replace(/<[^>]*>/g, ''); // HTML 태그 제거
       
@@ -198,7 +134,7 @@ export const searchBooks = async (query: string): Promise<BookSearchResult[]> =>
         isbn: item.isbn,
         description: item.description?.replace(/<[^>]*>/g, '') || '',
         image: item.image,
-        totalPages: item.totalPages,
+        totalPages, // 설명에서 추출한 페이지 수 (없으면 undefined)
       };
     });
   } catch (error) {
@@ -222,3 +158,40 @@ export const getBookByIsbn = async (isbn: string): Promise<BookSearchResult | nu
   }
 };
 
+/**
+ * 선택한 책의 페이지 수를 Google Books API에서 가져옵니다.
+ * 검색 결과에 페이지 수가 없을 때만 호출합니다.
+ * @param book 검색 결과 책 정보
+ * @returns 페이지 수 (없으면 undefined)
+ */
+export const fetchBookPageCount = async (book: BookSearchResult): Promise<number | undefined> => {
+  // ISBN으로 먼저 시도
+  if (book.isbn) {
+    try {
+      const isbnList = book.isbn.split(/\s+/).filter(isbn => isbn.trim());
+      const firstIsbn = isbnList[0] || book.isbn;
+      const { getBookInfoByIsbn } = await import('@/lib/utils/bookInfo');
+      const bookInfo = await getBookInfoByIsbn(firstIsbn);
+      if (bookInfo?.pageCount) {
+        return bookInfo.pageCount;
+      }
+    } catch (error) {
+      // 실패해도 계속 진행
+    }
+  }
+  
+  // 제목과 저자로 시도
+  if (book.title && book.author) {
+    try {
+      const { getBookInfoByTitleAndAuthor } = await import('@/lib/utils/bookInfo');
+      const bookInfo = await getBookInfoByTitleAndAuthor(book.title, book.author);
+      if (bookInfo?.pageCount) {
+        return bookInfo.pageCount;
+      }
+    } catch (error) {
+      // 실패해도 계속 진행
+    }
+  }
+  
+  return undefined;
+};

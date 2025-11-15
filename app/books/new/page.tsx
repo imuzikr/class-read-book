@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { createBook, checkDuplicateBook } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
-import { searchBooks, type BookSearchResult } from '@/lib/utils/bookSearch';
+import { searchBooks, fetchBookPageCount, type BookSearchResult } from '@/lib/utils/bookSearch';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -162,25 +162,37 @@ export default function NewBookPage() {
     }
   };
 
-  const handleSelectBook = (book: BookSearchResult) => {
-    setFormData({
-      title: book.title,
-      author: book.author,
-      totalPages: book.totalPages?.toString() || '',
-      currentPage: '0',
-    });
+  const handleSelectBook = async (book: BookSearchResult) => {
     // 검색 결과에서 이미지가 있으면 저장
     setSelectedBookImage(book.image || null);
-    setSearchResults([]);
-    setSearchQuery('');
-    setShowManualInput(true);
     
-    // 페이지 수가 없으면 사용자에게 안내
-    if (!book.totalPages) {
-      setError('페이지 수 정보가 없습니다. 총 페이지 수를 직접 입력해주세요.');
+    // 페이지 수가 없으면 Google Books API에서 가져오기 시도
+    let totalPages = book.totalPages;
+    if (!totalPages) {
+      setError('페이지 수를 가져오는 중...');
+      try {
+        totalPages = await fetchBookPageCount(book);
+        if (totalPages) {
+          setError('');
+        } else {
+          setError('페이지 수 정보를 찾을 수 없습니다. 총 페이지 수를 직접 입력해주세요.');
+        }
+      } catch (err) {
+        setError('페이지 수 정보를 찾을 수 없습니다. 총 페이지 수를 직접 입력해주세요.');
+      }
     } else {
       setError('');
     }
+    
+    setFormData({
+      title: book.title,
+      author: book.author,
+      totalPages: totalPages?.toString() || '',
+      currentPage: '0',
+    });
+    setSearchResults([]);
+    setSearchQuery('');
+    setShowManualInput(true);
   };
 
   const handleManualInputToggle = () => {
