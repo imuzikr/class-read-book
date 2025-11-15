@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn, signInWithGoogle } from '@/lib/firebase/auth';
+import { signIn, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import Button from '@/components/ui/Button';
@@ -16,6 +16,58 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 페이지 로드 시 리다이렉트 결과 확인
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getGoogleRedirectResult();
+        if (result && result.user) {
+          const userId = result.user.uid;
+          
+          // 사용자 데이터가 없으면 생성
+          try {
+            const existingUserData = await getUserData(userId);
+            if (!existingUserData) {
+              await createUserData(userId, {
+                email: result.user.email || '',
+                name: result.user.displayName || '사용자',
+                displayName: result.user.displayName || '사용자',
+                photoURL: result.user.photoURL || '',
+                level: 1,
+                exp: 0,
+                totalPagesRead: 0,
+                totalBooksRead: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                isAnonymous: false,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+              });
+            }
+          } catch (dbError: any) {
+            console.error('사용자 데이터 처리 실패:', dbError);
+          }
+
+          // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+          try {
+            const userData = await getUserData(userId);
+            if (userData && !userData.character) {
+              window.location.href = '/character/select';
+            } else {
+              window.location.href = '/dashboard';
+            }
+          } catch (error) {
+            window.location.href = '/dashboard';
+          }
+        }
+      } catch (err: any) {
+        console.error('리다이렉트 결과 처리 실패:', err);
+      }
+    };
+
+    handleRedirectResult();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,46 +89,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const userCredential = await signInWithGoogle();
-      const userId = userCredential.user.uid;
-      
-      // 사용자 데이터가 없으면 생성
-      try {
-        const existingUserData = await getUserData(userId);
-        if (!existingUserData) {
-          await createUserData(userId, {
-            email: userCredential.user.email || '',
-            name: userCredential.user.displayName || '사용자',
-            displayName: userCredential.user.displayName || '사용자',
-            photoURL: userCredential.user.photoURL || '',
-            level: 1,
-            exp: 0,
-            totalPagesRead: 0,
-            totalBooksRead: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            isAnonymous: false,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-          });
-        }
-      } catch (dbError: any) {
-        console.error('사용자 데이터 처리 실패:', dbError);
-        // Firestore 에러가 있어도 로그인은 성공했으므로 계속 진행
-      }
-
-      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-      try {
-        const userData = await getUserData(userId);
-        if (userData && !userData.character) {
-          window.location.href = '/character/select';
-        } else {
-          window.location.href = '/dashboard';
-        }
-      } catch (error) {
-        // 오류 발생 시 대시보드로 이동
-        window.location.href = '/dashboard';
-      }
+      // 리다이렉트 방식으로 Google 로그인 시작
+      await signInWithGoogle();
+      // 리다이렉트가 시작되면 이 함수는 여기서 종료됨
+      // 실제 로그인 처리는 리다이렉트 후 getRedirectResult로 처리됨
     } catch (err: any) {
       console.error('Google 로그인 에러:', err);
       setError(err.message || 'Google 로그인에 실패했습니다.');
