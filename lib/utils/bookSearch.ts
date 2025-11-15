@@ -42,15 +42,38 @@ export const searchBooks = async (query: string): Promise<BookSearchResult[]> =>
   try {
     // 네이버 책 검색 API는 클라이언트에서 직접 호출할 수 없으므로
     // Next.js API Route를 통해 호출합니다.
-    const response = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    // 응답이 없거나 실패한 경우 빈 배열 반환
+    if (!response) {
+      console.warn('책 검색 API 응답 없음');
+      return [];
+    }
     
     if (!response.ok) {
-      console.warn(`책 검색 API 응답 오류 (${response.status}):`, await response.text().catch(() => ''));
+      // 응답 본문을 읽으려고 시도하되 실패해도 계속 진행
+      try {
+        const errorText = await response.text();
+        console.warn(`책 검색 API 응답 오류 (${response.status}):`, errorText);
+      } catch (e) {
+        console.warn(`책 검색 API 응답 오류 (${response.status})`);
+      }
       // 네이버 API가 실패해도 빈 배열 반환 (앱이 중단되지 않도록)
       return [];
     }
 
-    const data: BookSearchResponse = await response.json();
+    let data: BookSearchResponse;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      console.error('책 검색 응답 JSON 파싱 오류:', jsonError);
+      return [];
+    }
     
     // 네이버 API가 빈 결과를 반환한 경우
     if (!data.items || data.items.length === 0) {

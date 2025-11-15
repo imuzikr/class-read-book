@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
  * 네이버 책 검색 API 프록시
  * 클라이언트에서 직접 네이버 API를 호출할 수 없으므로 서버 사이드에서 처리합니다.
  */
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const query = searchParams.get('q');
@@ -56,15 +59,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('책 검색 API 오류:', error);
-    console.error('에러 상세:', error.message, error.stack);
+    console.error('에러 상세:', error?.message || String(error), error?.stack);
     
     // 에러 발생 시 빈 결과 반환 (앱이 완전히 중단되지 않도록)
-    return NextResponse.json({
-      items: [],
-      total: 0,
-      start: 0,
-      display: 0,
-    });
+    // 항상 200 상태 코드로 반환하여 클라이언트가 정상적으로 처리할 수 있도록 함
+    return NextResponse.json(
+      {
+        items: [],
+        total: 0,
+        start: 0,
+        display: 0,
+      },
+      { status: 200 }
+    );
   }
 }
 
