@@ -191,6 +191,7 @@ export default function AdminPage() {
 
   // 책 클릭 시 해당 책을 읽고 있는 사용자들의 상세 정보 가져오기
   const handleBookClick = async (book: Book) => {
+    console.log('책 클릭됨:', book.title);
     setSelectedBook(book);
     
     // 같은 제목+저자의 책을 읽는 모든 사용자 찾기
@@ -198,6 +199,8 @@ export default function AdminPage() {
     const allBooksWithSameTitle = books.filter(b => 
       `${b.title.trim().toLowerCase()}_${b.author.trim().toLowerCase()}` === bookKey
     );
+    
+    console.log('같은 책을 읽는 사용자 수:', allBooksWithSameTitle.length);
     
     // 각 사용자별 상세 정보 수집
     const readersDetails = await Promise.all(
@@ -221,7 +224,8 @@ export default function AdminPage() {
       })
     );
     
-    const validReaders = readersDetails.filter((reader): reader is { userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number } => reader !== null);
+    const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>;
+    console.log('읽는 사용자 목록:', validReaders);
     setSelectedBookReaders(validReaders);
   };
 
@@ -434,9 +438,13 @@ export default function AdminPage() {
                     <tr 
                       key={book.id} 
                       className="hover:bg-gray-50 cursor-pointer transition-colors"
-                      onClick={() => handleBookClick(book)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleBookClick(book);
+                      }}
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-3">
                           {/* 책 커버 이미지 썸네일 */}
                           <div className="flex-shrink-0">
