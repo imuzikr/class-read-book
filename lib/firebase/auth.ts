@@ -73,9 +73,20 @@ export const getGoogleRedirectResult = async (): Promise<UserCredential | null> 
   checkAuth();
   try {
     const result = await getRedirectResult(auth!);
+    if (result) {
+      console.log('리다이렉트 결과 확인 성공:', {
+        userId: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+      });
+    } else {
+      console.log('리다이렉트 결과 없음 (이미 처리되었거나 리다이렉트가 아닌 경우)');
+    }
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('리다이렉트 결과 확인 실패:', error);
+    console.error('에러 코드:', error?.code);
+    console.error('에러 메시지:', error?.message);
     return null;
   }
 };
