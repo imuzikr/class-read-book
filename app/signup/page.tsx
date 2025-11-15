@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signUp, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
+import { useAuth } from '@/hooks/useAuth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import Button from '@/components/ui/Button';
@@ -12,18 +13,32 @@ import Link from 'next/link';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [processingRedirect, setProcessingRedirect] = useState(false);
+
+  // 이미 로그인된 사용자는 대시보드로 리다이렉트
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   // 페이지 로드 시 리다이렉트 결과 확인
   useEffect(() => {
     const handleRedirectResult = async () => {
+      // 이미 처리 중이면 중복 실행 방지
+      if (processingRedirect) return;
+      
       try {
+        setProcessingRedirect(true);
         const result = await getGoogleRedirectResult();
+        
         if (result && result.user) {
           const userId = result.user.uid;
           
@@ -53,21 +68,30 @@ export default function SignupPage() {
             }
           }
 
+          // 인증 상태가 설정될 때까지 잠시 대기
+          await new Promise(resolve => setTimeout(resolve, 500));
+
           // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
           const userData = await getUserData(userId);
           if (userData && !userData.character) {
-            window.location.href = '/character/select';
+            router.push('/character/select');
           } else {
-            window.location.href = '/dashboard';
+            router.push('/dashboard');
           }
         }
       } catch (err: any) {
         console.error('리다이렉트 결과 처리 실패:', err);
+        setError('회원가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+      } finally {
+        setProcessingRedirect(false);
       }
     };
 
-    handleRedirectResult();
-  }, []);
+    // 인증 로딩이 완료된 후에만 실행
+    if (!authLoading) {
+      handleRedirectResult();
+    }
+  }, [authLoading, router, processingRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
