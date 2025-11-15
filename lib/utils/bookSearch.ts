@@ -1,4 +1,13 @@
-import type { BookSearchResult } from './bookSearch';
+export interface BookSearchResult {
+  title: string;
+  author: string;
+  publisher: string;
+  pubdate: string;
+  isbn: string;
+  description?: string;
+  image?: string;
+  totalPages?: number;
+}
 
 export interface BookSearchResponse {
   items: Array<{
