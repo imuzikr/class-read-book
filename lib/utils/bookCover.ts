@@ -47,11 +47,11 @@ export const getBookCoverImage = async (
           const searchTitle = cleanTitle.toLowerCase();
           
           // 저자 매칭 확인
-                const bookAuthors = volumeInfo.authors || [];
-                const authorMatch = !cleanAuthor || bookAuthors.some((a: string) => 
-                  a.toLowerCase().includes(cleanAuthor.toLowerCase()) ||
-                  cleanAuthor.toLowerCase().includes(a.toLowerCase())
-                );
+          const bookAuthors = volumeInfo.authors || [];
+          const authorMatch = !cleanAuthor || bookAuthors.some((a: string) => 
+            a.toLowerCase().includes(cleanAuthor.toLowerCase()) ||
+            cleanAuthor.toLowerCase().includes(a.toLowerCase())
+          );
           
           // 제목이 유사하고 (저자가 없거나 매칭되면) 이미지 반환
           const titleMatch = bookTitle.includes(searchTitle) || searchTitle.includes(bookTitle);
