@@ -186,12 +186,49 @@ export default function LoginPage() {
         router.push('/dashboard');
       });
     }
-    // 리다이렉트 결과가 없지만 user가 있는 경우 (이미 로그인된 상태)
-    else if (!redirectResultRef.current && user && !processingRedirect) {
-      console.log('이미 로그인된 사용자 감지 (리다이렉트 없음), 대시보드로 이동', { userId: user.uid });
-      // 이 경우는 첫 번째 useEffect에서 처리되므로 여기서는 처리하지 않음
+    // getRedirectResult가 null이었지만 user가 나중에 업데이트된 경우
+    else if (!redirectResultRef.current && user && !authLoading && !processingRedirect) {
+      // getRedirectResult가 null이었지만 user가 있으면 리다이렉트가 완료된 것으로 간주
+      console.log('user 상태 업데이트 감지 (getRedirectResult null이었지만 user 존재), 처리 시작', { userId: user.uid });
+      redirectResultRef.current = { userId: user.uid, processed: false };
+      
+      // 사용자 데이터가 없으면 생성
+      getUserData(user.uid).then(async (existingUserData) => {
+        if (!existingUserData) {
+          console.log('새 사용자 데이터 생성 중...');
+          await createUserData(user.uid, {
+            email: user.email || '',
+            name: user.displayName || '사용자',
+            displayName: user.displayName || '사용자',
+            photoURL: user.photoURL || '',
+            level: 1,
+            exp: 0,
+            totalPagesRead: 0,
+            totalBooksRead: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            isAnonymous: false,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+          console.log('사용자 데이터 생성 완료');
+        }
+        
+        // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+        const userData = await getUserData(user.uid);
+        if (userData && !userData.character) {
+          console.log('캐릭터 없음, 캐릭터 선택 페이지로 이동');
+          router.push('/character/select');
+        } else {
+          console.log('대시보드로 이동');
+          router.push('/dashboard');
+        }
+      }).catch((error) => {
+        console.error('사용자 데이터 처리 실패:', error);
+        router.push('/dashboard');
+      });
     }
-  }, [user, router, processingRedirect]);
+  }, [user, router, processingRedirect, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
