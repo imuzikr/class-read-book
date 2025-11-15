@@ -94,7 +94,7 @@ function NewReviewContent() {
       const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
       const userData = await getUserData(user.uid);
       if (userData) {
-        const newExp = userData.exp + 50; // 감상문 작성 보너스 50 EXP
+        const newExp = userData.exp + 70; // 감상문 작성 보너스 70 EXP
         const { getLevelFromExp } = await import('@/lib/utils/game');
         const newLevel = getLevelFromExp(newExp);
         

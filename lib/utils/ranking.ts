@@ -91,8 +91,8 @@ export const calculatePeriodExp = async (
     exp += log.expGained;
   });
 
-  // 감상문 경험치 (50 EXP per review)
-  exp += periodReviews.length * 50;
+  // 감상문 경험치 (70 EXP per review)
+  exp += periodReviews.length * 70;
 
   // 뱃지 경험치는 전체 기간으로 계산 (복잡하므로 제외)
 

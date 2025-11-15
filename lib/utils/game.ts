@@ -57,7 +57,7 @@ export const calculateExpGain = (
   
   // 연속 독서 보너스
   if (isStreakBonus && streakDays > 0) {
-    exp += streakDays * 10;
+    exp += streakDays * 15; // 연속 독서 일수 × 15 EXP
   }
   
   return exp;

@@ -272,7 +272,7 @@ function ReadingLogContent() {
         );
 
         // 연속 독서 보너스 경험치 계산
-        const streakBonus = streakData.currentStreak > 0 ? streakData.currentStreak * 10 : 0;
+        const streakBonus = streakData.currentStreak > 0 ? streakData.currentStreak * 15 : 0;
         const totalExpGained = expGained + streakBonus;
         const newExp = userData.exp + totalExpGained;
         

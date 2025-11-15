@@ -144,23 +144,63 @@ export default function ProfilePage() {
     setError('');
 
     try {
-      // 1. Firestore의 모든 사용자 데이터 삭제
-      await deleteUserData(user.uid);
-
-      // 2. Firebase Authentication 계정 삭제
-      const { deleteUser: firebaseDeleteUser } = await import('firebase/auth');
+      const { deleteUser: firebaseDeleteUser, reauthenticateWithCredential, EmailAuthProvider, reauthenticateWithPopup, GoogleAuthProvider } = await import('firebase/auth');
       const { auth } = await import('@/lib/firebase/config');
       
-      if (auth && auth.currentUser) {
-        await firebaseDeleteUser(auth.currentUser);
+      if (!auth || !auth.currentUser) {
+        throw new Error('사용자 인증 정보를 찾을 수 없습니다.');
       }
 
-      // 3. 로그인 페이지로 리다이렉트
+      const currentUser = auth.currentUser;
+
+      // 재인증 필요 여부 확인 및 재인증 수행
+      try {
+        // 먼저 계정 삭제 시도 (최근 로그인이면 바로 삭제 가능)
+        await firebaseDeleteUser(currentUser);
+      } catch (reAuthError: any) {
+        // requires-recent-login 오류인 경우 재인증 필요
+        if (reAuthError.code === 'auth/requires-recent-login') {
+          // Google 로그인인 경우
+          if (currentUser.providerData.some(provider => provider.providerId === 'google.com')) {
+            const provider = new GoogleAuthProvider();
+            await reauthenticateWithPopup(currentUser, provider);
+          } else {
+            // 이메일/비밀번호 로그인인 경우 비밀번호 입력 요청
+            const password = prompt('보안을 위해 비밀번호를 다시 입력해주세요:');
+            if (!password) {
+              throw new Error('비밀번호 입력이 취소되었습니다.');
+            }
+            
+            const credential = EmailAuthProvider.credential(currentUser.email!, password);
+            await reauthenticateWithCredential(currentUser, credential);
+          }
+          
+          // 재인증 후 계정 삭제 재시도
+          await firebaseDeleteUser(currentUser);
+        } else {
+          throw reAuthError;
+        }
+      }
+
+      // Firestore의 모든 사용자 데이터 삭제 (계정 삭제 성공 후)
+      await deleteUserData(user.uid);
+
+      // 로그인 페이지로 리다이렉트
       alert('계정이 성공적으로 삭제되었습니다.');
       router.push('/login');
     } catch (err: any) {
       console.error('계정 삭제 실패:', err);
-      setError(err.message || '계정 삭제에 실패했습니다. 다시 시도해주세요.');
+      
+      let errorMessage = '계정 삭제에 실패했습니다.';
+      if (err.code === 'auth/wrong-password') {
+        errorMessage = '비밀번호가 올바르지 않습니다.';
+      } else if (err.code === 'auth/requires-recent-login') {
+        errorMessage = '보안을 위해 다시 로그인해주세요.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       setDeleting(false);
     }
   };

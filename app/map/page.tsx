@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, getUserBadges, isAdmin } from '@/lib/firebase/firestore';
 import { getAllUsers } from '@/lib/firebase/users';
-import { getLevelProgress, getExpToNextLevel, getLevelFromExp } from '@/lib/utils/game';
+import { getLevelProgress, getExpToNextLevel, getLevelFromExp, getExpForLevel } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
 import { updateUserData } from '@/lib/firebase/firestore';
 import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
@@ -96,13 +96,14 @@ export default function StatusBarPage() {
           // 현재 레벨 내 진행률 (0-100)
           let currentLevelProgress = getLevelProgress(userData.exp, userData.level);
           
-          // 전체 진행률 계산 (레벨 20을 최대로 가정)
-          // 레벨 1 = 0%, 레벨 20 = 100%
-          // 각 레벨은 5%씩 차지 (100% / 20레벨 = 5% per level)
+          // 전체 진행률 계산 (레벨 10을 최대로 가정)
+          // 레벨 1 = 0%, 레벨 10 = 100%
+          // 각 레벨은 11.11%씩 차지 (100% / 9레벨 간격 = 약 11.11% per level)
           // 현재 레벨의 기본 진행률 + 현재 레벨 내 진행률의 비율
-          const baseProgress = ((userData.level - 1) / 20) * 100; // 현재 레벨의 시작점
+          const maxLevel = 10;
+          const baseProgress = ((userData.level - 1) / (maxLevel - 1)) * 100; // 현재 레벨의 시작점
           const levelProgressRatio = currentLevelProgress / 100; // 현재 레벨 내 진행률 비율 (0-1)
-          const levelContribution = (1 / 20) * 100 * levelProgressRatio; // 현재 레벨에서 기여하는 진행률
+          const levelContribution = (1 / (maxLevel - 1)) * 100 * levelProgressRatio; // 현재 레벨에서 기여하는 진행률
           const totalProgress = Math.min(100, baseProgress + levelContribution);
           
           // 레벨 진행률이 100%를 초과하지 않도록 제한
@@ -160,8 +161,9 @@ export default function StatusBarPage() {
         return 5;
       }
       // 레벨 마커와 동일한 범위(5% ~ 95%)로 조정
-      const basePosition = 5 + (level / 20) * 90; // 레벨 20을 최대로 가정, 5% ~ 95% 범위
-      const progressOffset = (levelProgress / 100) * (90 / 20); // 현재 레벨 내 진행률 반영
+      const maxLevel = 10;
+      const basePosition = 5 + (level / maxLevel) * 90; // 레벨 10을 최대로 가정, 5% ~ 95% 범위
+      const progressOffset = (levelProgress / 100) * (90 / maxLevel); // 현재 레벨 내 진행률 반영
       return Math.min(95, Math.max(5, basePosition + progressOffset));
     };
 
@@ -212,10 +214,11 @@ export default function StatusBarPage() {
         {/* 레벨 마커 (카드 위쪽 바깥) */}
         <div className="relative mb-2">
           <div className="relative h-6 px-4">
-            {Array.from({ length: 21 }, (_, i) => i).map((level) => {
-              const markerPosition = 5 + (level / 20) * 90;
+            {Array.from({ length: 11 }, (_, i) => i).map((level) => {
+              const maxLevel = 10;
+              const markerPosition = 5 + (level / maxLevel) * 90;
               return (
-                level % 5 === 0 && (
+                level % 2 === 0 && (
                   <div
                     key={level}
                     className="absolute transform -translate-x-1/2"
@@ -238,8 +241,9 @@ export default function StatusBarPage() {
         >
           {/* 레벨 구분선 (트랙 내부) */}
           <div className="absolute top-0 left-0 right-0 h-full flex items-center px-4">
-            {Array.from({ length: 21 }, (_, i) => i).map((level) => {
-              const markerPosition = 5 + (level / 20) * 90;
+            {Array.from({ length: 11 }, (_, i) => i).map((level) => {
+              const maxLevel = 10;
+              const markerPosition = 5 + (level / maxLevel) * 90;
               return (
                 <div
                   key={level}
@@ -424,94 +428,110 @@ export default function StatusBarPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card title="독서 여정 순위" className="lg:col-span-2">
           <div className="space-y-3">
-            {allUsers.map((userStatus, index) => {
-              const isCurrentUser = userStatus.userId === user?.uid;
-              return (
-                <div
-                  key={userStatus.userId}
-                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
-                    isCurrentUser
-                      ? 'shadow-md'
-                      : 'bg-white border-gray-200 hover:border-orange-200 hover:shadow-sm'
-                  }`}
-                  style={isCurrentUser ? {
-                    backgroundColor: '#fff7ed',
-                    borderColor: '#fdba74',
-                  } : {}}
-                  onMouseEnter={() => setSelectedUser(userStatus)}
-                  onMouseLeave={() => setSelectedUser(null)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-4">
-                      {/* 메달 표시 */}
-                      <div className="relative w-10 h-10 flex items-center justify-center">
-                        {index === 0 ? (
-                          <span className="text-4xl">🥇</span>
-                        ) : index === 1 ? (
-                          <span className="text-4xl">🥈</span>
-                        ) : index === 2 ? (
-                          <span className="text-4xl">🥉</span>
-                        ) : (
-                          <div className="relative w-10 h-10 flex items-center justify-center">
-                            <svg width="40" height="40" viewBox="0 0 40 40" className="absolute">
-                              {/* 메달 리본 */}
-                              <path d="M 20 4 L 14 10 L 20 13 L 26 10 Z" fill="#9CA3AF" opacity="0.8"/>
-                              {/* 메달 원형 */}
-                              <circle cx="20" cy="20" r="16" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="1.5"/>
-                              <circle cx="20" cy="20" r="13" fill="#E5E7EB" stroke="#9CA3AF" strokeWidth="1"/>
-                            </svg>
-                            <span className="relative z-10 text-sm font-bold text-gray-700">
-                              {index + 1}
-                            </span>
+            {(() => {
+              // 최종 레벨(레벨 10)에 도달하는 데 필요한 경험치를 기준으로 사용
+              const maxLevel = 10;
+              const maxExp = getExpForLevel(maxLevel + 1); // 레벨 11에 도달하는 데 필요한 경험치
+              
+              return allUsers.map((userStatus, index) => {
+                const isCurrentUser = userStatus.userId === user?.uid;
+                // 총 누적 경험치 기준 진행률 계산 (0-100%)
+                const totalExpProgress = maxExp > 0 
+                  ? Math.min(100, (userStatus.exp / maxExp) * 100)
+                  : 0;
+                
+                return (
+                  <div
+                    key={userStatus.userId}
+                    className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                      isCurrentUser
+                        ? 'shadow-md'
+                        : 'bg-white border-gray-200 hover:border-orange-200 hover:shadow-sm'
+                    }`}
+                    style={isCurrentUser ? {
+                      backgroundColor: '#fff7ed',
+                      borderColor: '#fdba74',
+                    } : {}}
+                    onMouseEnter={() => setSelectedUser(userStatus)}
+                    onMouseLeave={() => setSelectedUser(null)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-4">
+                        {/* 메달 표시 */}
+                        <div className="relative w-10 h-10 flex items-center justify-center">
+                          {index === 0 ? (
+                            <span className="text-4xl">🥇</span>
+                          ) : index === 1 ? (
+                            <span className="text-4xl">🥈</span>
+                          ) : index === 2 ? (
+                            <span className="text-4xl">🥉</span>
+                          ) : (
+                            <div className="relative w-10 h-10 flex items-center justify-center">
+                              <svg width="40" height="40" viewBox="0 0 40 40" className="absolute">
+                                {/* 메달 리본 */}
+                                <path d="M 20 4 L 14 10 L 20 13 L 26 10 Z" fill="#9CA3AF" opacity="0.8"/>
+                                {/* 메달 원형 */}
+                                <circle cx="20" cy="20" r="16" fill="#D1D5DB" stroke="#9CA3AF" strokeWidth="1.5"/>
+                                <circle cx="20" cy="20" r="13" fill="#E5E7EB" stroke="#9CA3AF" strokeWidth="1"/>
+                              </svg>
+                              <span className="relative z-10 text-sm font-bold text-gray-700">
+                                {index + 1}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-3xl">
+                          {userStatus.character 
+                            ? getCharacterEmoji(userStatus.character.animalType)
+                            : getCharacterEmoji('bear')
+                          }
+                        </span>
+                        <div>
+                          <div className={`font-semibold ${isCurrentUser ? '' : 'text-gray-900'}`}
+                               style={isCurrentUser ? { color: '#c2410c' } : {}}
+                          >
+                            {userStatus.userName}
+                            {isCurrentUser && ' (나)'}
                           </div>
+                          <div className="text-sm text-gray-600">
+                            레벨 {userStatus.level} • {userStatus.exp.toLocaleString()} EXP
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold" style={{ color: '#ea580c' }}>
+                          {userStatus.totalPagesRead.toLocaleString()} 페이지
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {userStatus.badgesCount}개 뱃지
+                        </div>
+                      </div>
+                    </div>
+                    {/* 총 누적 경험치 진행 바 */}
+                    <div className="space-y-1">
+                      <div className="text-xs text-gray-500">
+                        레벨 {userStatus.level} • {userStatus.exp.toLocaleString()} EXP
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2 relative">
+                        {userStatus.exp > 0 ? (
+                          <div
+                            className="h-2 rounded-full transition-all"
+                            style={{ 
+                              // 최소 너비를 3%로 설정하여 낮은 경험치도 잘 보이도록
+                              // 실제 진행률이 3% 미만이면 3%로 표시, 그 이상이면 실제 진행률 사용
+                              width: `${Math.max(3, totalExpProgress)}%`,
+                              background: 'linear-gradient(to right, #fb923c, #ea580c)'
+                            }}
+                          />
+                        ) : (
+                          <div className="h-2 rounded-full bg-gray-300" style={{ width: '0%' }} />
                         )}
                       </div>
-                      <span className="text-3xl">
-                        {userStatus.character 
-                          ? getCharacterEmoji(userStatus.character.animalType)
-                          : getCharacterEmoji('bear')
-                        }
-                      </span>
-                      <div>
-                        <div className={`font-semibold ${isCurrentUser ? '' : 'text-gray-900'}`}
-                             style={isCurrentUser ? { color: '#c2410c' } : {}}
-                        >
-                          {userStatus.userName}
-                          {isCurrentUser && ' (나)'}
-                        </div>
-                        <div className="text-sm text-gray-600">
-                          레벨 {userStatus.level} • {userStatus.exp.toLocaleString()} EXP
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold" style={{ color: '#ea580c' }}>
-                        {userStatus.totalPagesRead.toLocaleString()} 페이지
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {userStatus.badgesCount}개 뱃지
-                      </div>
                     </div>
                   </div>
-                  {/* 레벨 진행 바 */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>레벨 {userStatus.level} • {userStatus.exp.toLocaleString()} EXP</span>
-                      <span>다음 레벨까지 {getExpToNextLevel(userStatus.exp, userStatus.level).toLocaleString()} EXP</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className="h-2 rounded-full transition-all"
-                        style={{ 
-                          width: `${userStatus.currentLevelProgress}%`,
-                          background: 'linear-gradient(to right, #fb923c, #ea580c)'
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         </Card>
 
