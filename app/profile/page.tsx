@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserData, updateUserData } from '@/lib/firebase/firestore';
+import { getUserData, updateUserData, deleteUserData } from '@/lib/firebase/firestore';
 import { type AnimalType, getFixedOutfitForAnimal, ANIMAL_OPTIONS, getCharacterEmoji } from '@/lib/utils/characters';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingNickname, setSavingNickname] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -132,6 +134,34 @@ export default function ProfilePage() {
       setError(err.message || '캐릭터 변경에 실패했습니다.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    setDeleting(true);
+    setError('');
+
+    try {
+      // 1. Firestore의 모든 사용자 데이터 삭제
+      await deleteUserData(user.uid);
+
+      // 2. Firebase Authentication 계정 삭제
+      const { deleteUser: firebaseDeleteUser } = await import('firebase/auth');
+      const { auth } = await import('@/lib/firebase/config');
+      
+      if (auth.currentUser) {
+        await firebaseDeleteUser(auth.currentUser);
+      }
+
+      // 3. 로그인 페이지로 리다이렉트
+      alert('계정이 성공적으로 삭제되었습니다.');
+      router.push('/login');
+    } catch (err: any) {
+      console.error('계정 삭제 실패:', err);
+      setError(err.message || '계정 삭제에 실패했습니다. 다시 시도해주세요.');
+      setDeleting(false);
     }
   };
 
@@ -352,6 +382,76 @@ export default function ProfilePage() {
             <span className="text-gray-600">총 읽은 페이지</span>
             <span className="font-semibold">{userData.totalPagesRead?.toLocaleString() || 0}</span>
           </div>
+        </div>
+      </Card>
+
+      {/* 계정 삭제 */}
+      <Card title="계정 관리">
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-red-900 mb-2">⚠️ 계정 탈퇴</h3>
+            <p className="text-sm text-red-800 mb-3">
+              계정을 탈퇴하면 다음 데이터가 <strong>완전히 삭제</strong>되며 복구할 수 없습니다:
+            </p>
+            <ul className="text-sm text-red-800 list-disc list-inside space-y-1 mb-4">
+              <li>사용자 프로필 정보</li>
+              <li>등록한 모든 책 정보</li>
+              <li>모든 독서 기록 및 감상</li>
+              <li>획득한 모든 뱃지</li>
+              <li>레벨 및 경험치 정보</li>
+              <li>랭킹 및 통계 데이터</li>
+            </ul>
+            <p className="text-sm text-red-900 font-semibold">
+              정말로 탈퇴하시겠습니까?
+            </p>
+          </div>
+
+          {!showDeleteConfirm ? (
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="border-red-300 text-red-600 hover:bg-red-50"
+            >
+              계정 탈퇴하기
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-900 font-semibold mb-2">
+                  최종 확인이 필요합니다.
+                </p>
+                <p className="text-sm text-yellow-800">
+                  위에 나열된 모든 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setError('');
+                  }}
+                  disabled={deleting}
+                  className="flex-1"
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleDeleteAccount}
+                  disabled={deleting}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {deleting ? '삭제 중...' : '확인하고 탈퇴하기'}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+              {error}
+            </div>
+          )}
         </div>
       </Card>
 

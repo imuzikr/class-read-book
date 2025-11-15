@@ -408,6 +408,58 @@ export const hasBadge = async (userId: string, badgeId: string): Promise<boolean
   return badges.includes(badgeId);
 };
 
+// 사용자 데이터 완전 삭제 (탈퇴)
+export const deleteUserData = async (userId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+
+  try {
+    // 1. 사용자의 모든 책 삭제
+    const booksQuery = query(
+      collection(db, 'books'),
+      where('userId', '==', userId)
+    );
+    const booksSnapshot = await getDocs(booksQuery);
+    const deleteBooksPromises = booksSnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deleteBooksPromises);
+
+    // 2. 사용자의 모든 독서 기록 삭제
+    const logsQuery = query(
+      collection(db, 'readingLogs'),
+      where('userId', '==', userId)
+    );
+    const logsSnapshot = await getDocs(logsQuery);
+    const deleteLogsPromises = logsSnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deleteLogsPromises);
+
+    // 3. 사용자의 모든 감상문 삭제
+    const reviewsQuery = query(
+      collection(db, 'reviews'),
+      where('userId', '==', userId)
+    );
+    const reviewsSnapshot = await getDocs(reviewsQuery);
+    const deleteReviewsPromises = reviewsSnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deleteReviewsPromises);
+
+    // 4. 사용자의 모든 뱃지 삭제
+    const badgesQuery = query(
+      collection(db, 'userBadges'),
+      where('userId', '==', userId)
+    );
+    const badgesSnapshot = await getDocs(badgesQuery);
+    const deleteBadgesPromises = badgesSnapshot.docs.map((doc) => deleteDoc(doc.ref));
+    await Promise.all(deleteBadgesPromises);
+
+    // 5. 사용자 데이터 삭제
+    const userDocRef = doc(db, 'users', userId);
+    await deleteDoc(userDocRef);
+  } catch (error) {
+    console.error('사용자 데이터 삭제 실패:', error);
+    throw new Error('사용자 데이터 삭제에 실패했습니다.');
+  }
+};
+
 // 관리자 확인 함수
 export const isAdmin = async (userId: string): Promise<boolean> => {
   if (!db) {
