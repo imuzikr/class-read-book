@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserBadges } from '@/lib/firebase/firestore';
@@ -13,17 +13,7 @@ export default function AchievementsPage() {
   const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchBadges();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchBadges = async () => {
+  const fetchBadges = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -34,7 +24,17 @@ export default function AchievementsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchBadges();
+    }
+  }, [user, authLoading, router, fetchBadges]);
 
   const isEarned = (badgeId: string) => {
     return earnedBadges.includes(badgeId);
