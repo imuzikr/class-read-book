@@ -33,6 +33,8 @@ export default function AdminPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [bookReaders, setBookReaders] = useState<Map<string, Array<{ userId: string; userName: string; progress: number }>>>(new Map());
   const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'books'>('stats');
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [selectedBookReaders, setSelectedBookReaders] = useState<Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>>([]);
 
   useEffect(() => {
     if (!authLoading && !adminLoading) {
@@ -185,6 +187,42 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 책 클릭 시 해당 책을 읽고 있는 사용자들의 상세 정보 가져오기
+  const handleBookClick = async (book: Book) => {
+    setSelectedBook(book);
+    
+    // 같은 제목+저자의 책을 읽는 모든 사용자 찾기
+    const bookKey = `${book.title.trim().toLowerCase()}_${book.author.trim().toLowerCase()}`;
+    const allBooksWithSameTitle = books.filter(b => 
+      `${b.title.trim().toLowerCase()}_${b.author.trim().toLowerCase()}` === bookKey
+    );
+    
+    // 각 사용자별 상세 정보 수집
+    const readersDetails = await Promise.all(
+      allBooksWithSameTitle.map(async (b) => {
+        const userData = users.find(u => u.id === b.userId);
+        if (userData) {
+          const progress = b.totalPages > 0 
+            ? Math.round((b.currentPage / b.totalPages) * 100) 
+            : 0;
+          
+          return {
+            userId: b.userId,
+            userName: userData.displayName || userData.name || '이름 없음',
+            progress,
+            status: b.status,
+            currentPage: b.currentPage,
+            totalPages: b.totalPages,
+          };
+        }
+        return null;
+      })
+    );
+    
+    const validReaders = readersDetails.filter((reader): reader is { userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number } => reader !== null);
+    setSelectedBookReaders(validReaders);
   };
 
   if (authLoading || adminLoading || loading) {
@@ -393,7 +431,11 @@ export default function AdminPage() {
                   const readers = bookReaders.get(bookKey) || [];
                   
                   return (
-                    <tr key={book.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={book.id} 
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => handleBookClick(book)}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {/* 책 커버 이미지 썸네일 */}
