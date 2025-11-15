@@ -241,24 +241,36 @@ export default function BooksPage() {
         </Link>
       </div>
 
-      {/* 필터 */}
-      <div className="flex space-x-2">
-        {(['all', 'reading', 'completed', 'paused'] as const).map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilter(status)}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              filter === status
-                ? 'bg-primary-500 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            }`}
+      {/* 필터 및 이미지 가져오기 버튼 */}
+      <div className="flex justify-between items-center">
+        <div className="flex space-x-2">
+          {(['all', 'reading', 'completed', 'paused'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              className={`px-4 py-2 rounded-lg transition-colors ${
+                filter === status
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              {status === 'all' && '전체'}
+              {status === 'reading' && '읽는 중'}
+              {status === 'completed' && '완독'}
+              {status === 'paused' && '일시정지'}
+            </button>
+          ))}
+        </div>
+        {books.some(book => !book.coverImage && !bookImages[book.id || '']) && (
+          <Button
+            onClick={handleFetchMissingImages}
+            disabled={fetchingImages}
+            variant="outline"
+            size="sm"
           >
-            {status === 'all' && '전체'}
-            {status === 'reading' && '읽는 중'}
-            {status === 'completed' && '완독'}
-            {status === 'paused' && '일시정지'}
-          </button>
-        ))}
+            {fetchingImages ? '이미지 가져오는 중...' : '📷 커버 이미지 가져오기'}
+          </Button>
+        )}
       </div>
 
       {/* 책 목록 */}
