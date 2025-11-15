@@ -539,7 +539,7 @@ export default function AdminPage() {
       {/* 책 상세 모달 */}
       {selectedBook && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
           onClick={() => {
             setSelectedBook(null);
             setSelectedBookReaders([]);
