@@ -29,13 +29,13 @@ export default function LoginPage() {
   }, [user, authLoading, router, processingRedirect]);
 
   // 리다이렉트 결과를 저장할 ref
-  const redirectResultRef = useRef<{ userId: string } | null>(null);
+  const redirectResultRef = useRef<{ userId: string; processed: boolean } | null>(null);
 
   // 페이지 로드 시 리다이렉트 결과 확인 (한 번만 실행)
   useEffect(() => {
     const handleRedirectResult = async () => {
       // 이미 처리 중이면 중복 실행 방지
-      if (processingRedirect) return;
+      if (processingRedirect || redirectResultRef.current?.processed) return;
       
       try {
         setProcessingRedirect(true);
@@ -45,8 +45,8 @@ export default function LoginPage() {
         
         if (result && result.user) {
           const userId = result.user.uid;
-          console.log('Google 로그인 성공, 사용자 ID:', userId);
-          redirectResultRef.current = { userId };
+          console.log('Google 로그인 성공 (리다이렉트 결과), 사용자 ID:', userId);
+          redirectResultRef.current = { userId, processed: false };
           
           // 사용자 데이터가 없으면 생성
           try {
@@ -74,7 +74,9 @@ export default function LoginPage() {
             console.error('사용자 데이터 처리 실패:', dbError);
           }
         } else {
-          console.log('리다이렉트 결과 없음');
+          console.log('리다이렉트 결과 없음 - getRedirectResult가 null 반환');
+          // getRedirectResult가 null이어도 이미 로그인되어 있을 수 있음
+          // useAuth의 user 상태를 확인해야 함
           setProcessingRedirect(false);
         }
       } catch (err: any) {
@@ -85,17 +87,18 @@ export default function LoginPage() {
     };
 
     // 인증 로딩이 완료된 후에만 실행 (한 번만)
-    if (!authLoading && !redirectResultRef.current) {
+    if (!authLoading && !redirectResultRef.current?.processed) {
       handleRedirectResult();
     }
   }, [authLoading, processingRedirect]);
 
   // 인증 상태가 업데이트되면 리다이렉트 처리
   useEffect(() => {
-    if (redirectResultRef.current && user && user.uid === redirectResultRef.current.userId && !processingRedirect) {
-      console.log('인증 상태 확인됨, 페이지 이동 시작', { userId: user.uid });
+    // 리다이렉트 결과가 있고 아직 처리되지 않았으며, user 상태가 업데이트된 경우
+    if (redirectResultRef.current && !redirectResultRef.current.processed && user && user.uid === redirectResultRef.current.userId) {
+      console.log('인증 상태 확인됨 (리다이렉트 결과), 페이지 이동 시작', { userId: user.uid });
       const userId = redirectResultRef.current.userId;
-      redirectResultRef.current = null; // 처리 완료 표시
+      redirectResultRef.current.processed = true; // 처리 완료 표시
       setProcessingRedirect(false);
       
       // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
@@ -111,6 +114,11 @@ export default function LoginPage() {
         console.error('사용자 데이터 가져오기 실패:', error);
         router.push('/dashboard');
       });
+    }
+    // 리다이렉트 결과가 없지만 user가 있는 경우 (이미 로그인된 상태)
+    else if (!redirectResultRef.current && user && !processingRedirect) {
+      console.log('이미 로그인된 사용자 감지 (리다이렉트 없음), 대시보드로 이동', { userId: user.uid });
+      // 이 경우는 첫 번째 useEffect에서 처리되므로 여기서는 처리하지 않음
     }
   }, [user, router, processingRedirect]);
 
