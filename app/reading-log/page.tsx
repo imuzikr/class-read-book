@@ -259,10 +259,10 @@ function ReadingLogContent() {
       await updateBook(formData.bookId, bookUpdates);
 
       // 사용자 통계 업데이트 (나중에 Cloud Function으로 처리할 수도 있음)
-      const { getUserData, updateUserData, getUserBadges } = await import('@/lib/firebase/firestore');
+      // 이미 위에서 가져온 userData 사용
+      const { updateUserData, getUserBadges } = await import('@/lib/firebase/firestore');
       const { updateStreakOnNewLog } = await import('@/lib/utils/streak');
       const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
-      const userData = await getUserData(user.uid);
       if (userData) {
         // 연속 독서 일수 계산
         const streakData = updateStreakOnNewLog(
