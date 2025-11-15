@@ -16,8 +16,6 @@ export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'reading' | 'completed' | 'paused'>('all');
-  const [bookImages, setBookImages] = useState<Record<string, string>>({});
-  const [fetchingImages, setFetchingImages] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -54,55 +52,6 @@ export default function BooksPage() {
       
       const uniqueBooks = Array.from(uniqueBooksMap.values());
       setBooks(uniqueBooks);
-
-      // 이미지가 없는 책들에 대해 커버 이미지 가져오기
-      const booksWithoutImages = uniqueBooks.filter(book => !book.coverImage && book.id);
-      
-      if (booksWithoutImages.length > 0) {
-        console.log(`${booksWithoutImages.length}개의 책에 대해 이미지를 가져오는 중...`);
-        
-        // 병렬로 이미지를 가져오되, 각 이미지를 가져올 때마다 상태 업데이트
-        const { getBookCoverImage } = await import('@/lib/utils/bookCover');
-        const { updateBook } = await import('@/lib/firebase/firestore');
-        
-        // Promise.all을 사용하되, 각 이미지를 가져올 때마다 상태를 업데이트하기 위해
-        // Promise.allSettled를 사용하여 일부 실패해도 계속 진행
-        const imagePromises = booksWithoutImages.map(async (book) => {
-          if (!book.id) return null;
-          
-          try {
-            console.log(`책 "${book.title}" 이미지 가져오는 중...`);
-            const coverImage = await getBookCoverImage(book.title, book.author);
-            
-            if (coverImage) {
-              console.log(`책 "${book.title}" 이미지 가져오기 성공:`, coverImage);
-              // 상태 업데이트 (각 이미지를 가져올 때마다)
-              setBookImages(prev => ({
-                ...prev,
-                [book.id!]: coverImage,
-              }));
-              
-              // Firestore에도 업데이트 (백그라운드)
-              updateBook(book.id, { coverImage }).catch(err => 
-                console.error(`책 ${book.id} 이미지 업데이트 실패:`, err)
-              );
-              
-              return { bookId: book.id, coverImage };
-            } else {
-              console.log(`책 "${book.title}" 이미지를 찾을 수 없음`);
-              return null;
-            }
-          } catch (error) {
-            console.error(`책 ${book.id} 이미지 가져오기 실패:`, error);
-            return null;
-          }
-        });
-        
-        // 모든 이미지 가져오기 작업을 시작 (결과는 기다리지 않음)
-        Promise.allSettled(imagePromises).then(() => {
-          console.log('모든 책 이미지 가져오기 작업 완료');
-        });
-      }
     } catch (error) {
       console.error('책 목록 로드 실패:', error);
     } finally {
@@ -122,81 +71,6 @@ export default function BooksPage() {
     } catch (error) {
       console.error('책 삭제 실패:', error);
       alert('책 삭제에 실패했습니다.');
-    }
-  };
-
-  // 수동으로 이미지가 없는 책들의 커버 이미지 가져오기
-  const handleFetchMissingImages = async () => {
-    if (!user) return;
-    
-    setFetchingImages(true);
-    try {
-      const booksWithoutImages = books.filter(book => !book.coverImage && !bookImages[book.id || ''] && book.id);
-      
-      if (booksWithoutImages.length === 0) {
-        alert('이미지가 없는 책이 없습니다.');
-        setFetchingImages(false);
-        return;
-      }
-
-      console.log(`${booksWithoutImages.length}개의 책에 대해 이미지를 가져오는 중...`);
-      const { getBookCoverImage } = await import('@/lib/utils/bookCover');
-      const { updateBook } = await import('@/lib/firebase/firestore');
-      
-      // 병렬로 이미지를 가져오되, 각 이미지를 가져올 때마다 상태 업데이트
-      const imagePromises = booksWithoutImages.map(async (book) => {
-        if (!book.id) return { success: false, bookId: null, error: 'No book ID' };
-        
-        try {
-          console.log(`책 "${book.title}" 이미지 가져오는 중...`);
-          const coverImage = await getBookCoverImage(book.title, book.author);
-          
-          if (coverImage) {
-            console.log(`책 "${book.title}" 이미지 가져오기 성공:`, coverImage);
-            // 상태 업데이트 (각 이미지를 가져올 때마다)
-            setBookImages(prev => ({
-              ...prev,
-              [book.id!]: coverImage,
-            }));
-            
-            // Firestore에도 업데이트
-            await updateBook(book.id, { coverImage });
-            return { success: true, bookId: book.id, coverImage };
-          } else {
-            console.log(`책 "${book.title}" 이미지를 찾을 수 없음`);
-            return { success: false, bookId: book.id, error: 'Image not found' };
-          }
-        } catch (error) {
-          console.error(`책 ${book.id} 이미지 가져오기 실패:`, error);
-          return { success: false, bookId: book.id, error: String(error) };
-        }
-      });
-      
-      const results = await Promise.allSettled(imagePromises);
-      
-      // 결과 집계
-      let successCount = 0;
-      let failCount = 0;
-      
-      results.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          if (result.value.success) {
-            successCount++;
-          } else {
-            failCount++;
-          }
-        } else {
-          failCount++;
-        }
-      });
-      
-      console.log(`이미지 가져오기 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
-      alert(`${successCount}개의 책 이미지를 가져왔습니다.${failCount > 0 ? ` (${failCount}개 실패)` : ''}`);
-    } catch (error) {
-      console.error('이미지 가져오기 실패:', error);
-      alert('이미지 가져오기에 실패했습니다.');
-    } finally {
-      setFetchingImages(false);
     }
   };
 
@@ -256,7 +130,7 @@ export default function BooksPage() {
         </Link>
       </div>
 
-      {/* 필터 및 이미지 가져오기 버튼 */}
+      {/* 필터 */}
       <div className="flex justify-between items-center">
         <div className="flex space-x-2">
           {(['all', 'reading', 'completed', 'paused'] as const).map((status) => (
@@ -276,21 +150,6 @@ export default function BooksPage() {
             </button>
           ))}
         </div>
-        {books.some(book => !book.coverImage && !bookImages[book.id || '']) && (
-          <Button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleFetchMissingImages();
-            }}
-            disabled={fetchingImages}
-            variant="outline"
-            size="sm"
-            type="button"
-          >
-            {fetchingImages ? '이미지 가져오는 중...' : '📷 커버 이미지 가져오기'}
-          </Button>
-        )}
       </div>
 
       {/* 책 목록 */}
@@ -315,16 +174,21 @@ export default function BooksPage() {
               : 0;
 
             return (
-              <Card key={book.id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={book.id} 
+                className={`hover:shadow-lg transition-all ${
+                  book.status === 'completed' ? 'opacity-60' : ''
+                }`}
+              >
                 <div className="space-y-4">
                   {/* 책 커버 이미지와 정보 */}
                   <div className="flex gap-4">
                     {/* 커버 이미지 썸네일 */}
                     <div className="flex-shrink-0">
                       <div className="w-20 h-28 bg-gray-200 rounded overflow-hidden shadow-sm">
-                        {(book.coverImage || bookImages[book.id || '']) ? (
+                        {book.coverImage ? (
                           <img
-                            src={book.coverImage || bookImages[book.id || ''] || ''}
+                            src={book.coverImage}
                             alt={`${book.title} 커버`}
                             className="w-full h-full object-cover"
                             onError={(e) => {
