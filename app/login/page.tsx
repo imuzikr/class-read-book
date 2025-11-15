@@ -126,8 +126,18 @@ export default function LoginPage() {
             // user가 아직 없으면 onAuthStateChanged가 트리거될 때까지 대기
             console.log('user 상태가 아직 없음 - onAuthStateChanged 대기 중...');
             console.log('authLoading 상태:', authLoading);
-            // processingRedirect를 false로 설정하지 않고 대기
-            // user 상태가 업데이트되면 두 번째 useEffect에서 처리됨
+            
+            // authLoading이 완료되었고 user도 없으면 리다이렉트가 아닌 것으로 간주
+            // 일정 시간 후 processingRedirect를 false로 설정하여 로그인 폼 표시
+            if (!authLoading) {
+              console.log('authLoading 완료, user 없음 - 리다이렉트가 아닌 것으로 간주');
+              setTimeout(() => {
+                if (!user && !authLoading) {
+                  console.log('타임아웃: processingRedirect를 false로 설정하여 로그인 폼 표시');
+                  setProcessingRedirect(false);
+                }
+              }, 2000); // 2초 후 로그인 폼 표시
+            }
           }
         }
       } catch (err: any) {
@@ -207,6 +217,11 @@ export default function LoginPage() {
         console.error('사용자 데이터 처리 실패:', error);
         router.push('/dashboard');
       });
+    }
+    // processingRedirect가 true인데 user가 없고 authLoading도 완료된 경우 (리다이렉트 아님)
+    else if (processingRedirect && !user && !authLoading && !redirectResultRef.current) {
+      console.log('리다이렉트가 아닌 것으로 확인, 로그인 폼 표시');
+      setProcessingRedirect(false);
     }
   }, [user, router, processingRedirect, authLoading]);
 
