@@ -45,10 +45,18 @@ export const searchBooks = async (query: string): Promise<BookSearchResult[]> =>
     const response = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`);
     
     if (!response.ok) {
-      throw new Error('책 검색에 실패했습니다.');
+      console.warn(`책 검색 API 응답 오류 (${response.status}):`, await response.text().catch(() => ''));
+      // 네이버 API가 실패해도 빈 배열 반환 (앱이 중단되지 않도록)
+      return [];
     }
 
     const data: BookSearchResponse = await response.json();
+    
+    // 네이버 API가 빈 결과를 반환한 경우
+    if (!data.items || data.items.length === 0) {
+      console.log(`책 검색 결과 없음: "${query}"`);
+      return [];
+    }
     
     // 각 아이템에 대해 ISBN으로 페이지 수를 가져오기 (병렬 처리)
     const itemsWithPages = await Promise.all(

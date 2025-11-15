@@ -18,10 +18,16 @@ export async function GET(request: NextRequest) {
 
     if (!clientId || !clientSecret) {
       console.error('네이버 API 키가 설정되지 않았습니다.');
-      return NextResponse.json(
-        { error: '책 검색 기능을 사용할 수 없습니다. 관리자에게 문의하세요.' },
-        { status: 500 }
-      );
+      console.error('NAVER_CLIENT_ID:', clientId ? '설정됨' : '없음');
+      console.error('NAVER_CLIENT_SECRET:', clientSecret ? '설정됨' : '없음');
+      
+      // 네이버 API 키가 없어도 Google Books API만 사용할 수 있도록 빈 결과 반환
+      return NextResponse.json({
+        items: [],
+        total: 0,
+        start: 0,
+        display: 0,
+      });
     }
 
     const apiUrl = `https://openapi.naver.com/v1/search/book.json?query=${encodeURIComponent(query)}&display=10&start=1`;
@@ -34,17 +40,31 @@ export async function GET(request: NextRequest) {
     });
 
     if (!response.ok) {
-      throw new Error(`네이버 API 오류: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`네이버 API 오류 (${response.status}):`, errorText);
+      
+      // 네이버 API 실패 시 빈 결과 반환 (Google Books API는 여전히 사용 가능)
+      return NextResponse.json({
+        items: [],
+        total: 0,
+        start: 0,
+        display: 0,
+      });
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('책 검색 API 오류:', error);
-    return NextResponse.json(
-      { error: error.message || '책 검색에 실패했습니다.' },
-      { status: 500 }
-    );
+    console.error('에러 상세:', error.message, error.stack);
+    
+    // 에러 발생 시 빈 결과 반환 (앱이 완전히 중단되지 않도록)
+    return NextResponse.json({
+      items: [],
+      total: 0,
+      start: 0,
+      display: 0,
+    });
   }
 }
 
