@@ -19,6 +19,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [processingRedirect, setProcessingRedirect] = useState(false);
+  
+  // 리다이렉트 결과를 저장할 ref (useEffect보다 먼저 선언)
+  const redirectResultRef = useRef<{ userId: string; processed: boolean } | null>(null);
 
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (리다이렉트 처리 중이 아닐 때만)
   // 단, 리다이렉트 결과가 있는 경우는 제외 (별도 useEffect에서 처리)
@@ -28,9 +31,6 @@ export default function LoginPage() {
       router.push('/dashboard');
     }
   }, [user, authLoading, router, processingRedirect]);
-
-  // 리다이렉트 결과를 저장할 ref
-  const redirectResultRef = useRef<{ userId: string; processed: boolean } | null>(null);
 
   // 페이지 로드 시 리다이렉트 결과 확인 (한 번만 실행)
   useEffect(() => {
