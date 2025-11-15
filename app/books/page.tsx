@@ -17,6 +17,7 @@ export default function BooksPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'reading' | 'completed' | 'paused'>('all');
   const [bookImages, setBookImages] = useState<Record<string, string>>({});
+  const [fetchingImages, setFetchingImages] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -60,13 +61,17 @@ export default function BooksPage() {
       if (booksWithoutImages.length > 0) {
         console.log(`${booksWithoutImages.length}개의 책에 대해 이미지를 가져오는 중...`);
         
-        // 각 책에 대해 이미지를 가져오고, 가져올 때마다 상태 업데이트
-        booksWithoutImages.forEach(async (book) => {
-          if (!book.id) return;
+        // 병렬로 이미지를 가져오되, 각 이미지를 가져올 때마다 상태 업데이트
+        const { getBookCoverImage } = await import('@/lib/utils/bookCover');
+        const { updateBook } = await import('@/lib/firebase/firestore');
+        
+        // Promise.all을 사용하되, 각 이미지를 가져올 때마다 상태를 업데이트하기 위해
+        // Promise.allSettled를 사용하여 일부 실패해도 계속 진행
+        const imagePromises = booksWithoutImages.map(async (book) => {
+          if (!book.id) return null;
           
           try {
             console.log(`책 "${book.title}" 이미지 가져오는 중...`);
-            const { getBookCoverImage } = await import('@/lib/utils/bookCover');
             const coverImage = await getBookCoverImage(book.title, book.author);
             
             if (coverImage) {
@@ -78,16 +83,24 @@ export default function BooksPage() {
               }));
               
               // Firestore에도 업데이트 (백그라운드)
-              const { updateBook } = await import('@/lib/firebase/firestore');
               updateBook(book.id, { coverImage }).catch(err => 
                 console.error(`책 ${book.id} 이미지 업데이트 실패:`, err)
               );
+              
+              return { bookId: book.id, coverImage };
             } else {
               console.log(`책 "${book.title}" 이미지를 찾을 수 없음`);
+              return null;
             }
           } catch (error) {
             console.error(`책 ${book.id} 이미지 가져오기 실패:`, error);
+            return null;
           }
+        });
+        
+        // 모든 이미지 가져오기 작업을 시작 (결과는 기다리지 않음)
+        Promise.allSettled(imagePromises).then(() => {
+          console.log('모든 책 이미지 가져오기 작업 완료');
         });
       }
     } catch (error) {
@@ -109,6 +122,66 @@ export default function BooksPage() {
     } catch (error) {
       console.error('책 삭제 실패:', error);
       alert('책 삭제에 실패했습니다.');
+    }
+  };
+
+  // 수동으로 이미지가 없는 책들의 커버 이미지 가져오기
+  const handleFetchMissingImages = async () => {
+    if (!user) return;
+    
+    setFetchingImages(true);
+    try {
+      const booksWithoutImages = books.filter(book => !book.coverImage && !bookImages[book.id || ''] && book.id);
+      
+      if (booksWithoutImages.length === 0) {
+        alert('이미지가 없는 책이 없습니다.');
+        setFetchingImages(false);
+        return;
+      }
+
+      const { getBookCoverImage } = await import('@/lib/utils/bookCover');
+      const { updateBook } = await import('@/lib/firebase/firestore');
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      // 병렬로 이미지를 가져오되, 각 이미지를 가져올 때마다 상태 업데이트
+      const imagePromises = booksWithoutImages.map(async (book) => {
+        if (!book.id) return null;
+        
+        try {
+          const coverImage = await getBookCoverImage(book.title, book.author);
+          
+          if (coverImage) {
+            // 상태 업데이트 (각 이미지를 가져올 때마다)
+            setBookImages(prev => ({
+              ...prev,
+              [book.id!]: coverImage,
+            }));
+            
+            // Firestore에도 업데이트
+            await updateBook(book.id, { coverImage });
+            successCount++;
+            return { bookId: book.id, coverImage };
+          } else {
+            failCount++;
+            return null;
+          }
+        } catch (error) {
+          console.error(`책 ${book.id} 이미지 가져오기 실패:`, error);
+          failCount++;
+          return null;
+        }
+      });
+      
+      await Promise.allSettled(imagePromises);
+      
+      alert(`${successCount}개의 책 이미지를 가져왔습니다.${failCount > 0 ? ` (${failCount}개 실패)` : ''}`);
+    } catch (error) {
+      console.error('이미지 가져오기 실패:', error);
+      alert('이미지 가져오기에 실패했습니다.');
+    } finally {
+      setFetchingImages(false);
     }
   };
 
