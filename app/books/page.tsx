@@ -139,20 +139,20 @@ export default function BooksPage() {
         return;
       }
 
+      console.log(`${booksWithoutImages.length}개의 책에 대해 이미지를 가져오는 중...`);
       const { getBookCoverImage } = await import('@/lib/utils/bookCover');
       const { updateBook } = await import('@/lib/firebase/firestore');
       
-      let successCount = 0;
-      let failCount = 0;
-      
       // 병렬로 이미지를 가져오되, 각 이미지를 가져올 때마다 상태 업데이트
       const imagePromises = booksWithoutImages.map(async (book) => {
-        if (!book.id) return null;
+        if (!book.id) return { success: false, bookId: null, error: 'No book ID' };
         
         try {
+          console.log(`책 "${book.title}" 이미지 가져오는 중...`);
           const coverImage = await getBookCoverImage(book.title, book.author);
           
           if (coverImage) {
+            console.log(`책 "${book.title}" 이미지 가져오기 성공:`, coverImage);
             // 상태 업데이트 (각 이미지를 가져올 때마다)
             setBookImages(prev => ({
               ...prev,
@@ -161,21 +161,36 @@ export default function BooksPage() {
             
             // Firestore에도 업데이트
             await updateBook(book.id, { coverImage });
-            successCount++;
-            return { bookId: book.id, coverImage };
+            return { success: true, bookId: book.id, coverImage };
           } else {
-            failCount++;
-            return null;
+            console.log(`책 "${book.title}" 이미지를 찾을 수 없음`);
+            return { success: false, bookId: book.id, error: 'Image not found' };
           }
         } catch (error) {
           console.error(`책 ${book.id} 이미지 가져오기 실패:`, error);
-          failCount++;
-          return null;
+          return { success: false, bookId: book.id, error: String(error) };
         }
       });
       
-      await Promise.allSettled(imagePromises);
+      const results = await Promise.allSettled(imagePromises);
       
+      // 결과 집계
+      let successCount = 0;
+      let failCount = 0;
+      
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } else {
+          failCount++;
+        }
+      });
+      
+      console.log(`이미지 가져오기 완료: 성공 ${successCount}개, 실패 ${failCount}개`);
       alert(`${successCount}개의 책 이미지를 가져왔습니다.${failCount > 0 ? ` (${failCount}개 실패)` : ''}`);
     } catch (error) {
       console.error('이미지 가져오기 실패:', error);
@@ -263,10 +278,15 @@ export default function BooksPage() {
         </div>
         {books.some(book => !book.coverImage && !bookImages[book.id || '']) && (
           <Button
-            onClick={handleFetchMissingImages}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleFetchMissingImages();
+            }}
             disabled={fetchingImages}
             variant="outline"
             size="sm"
+            type="button"
           >
             {fetchingImages ? '이미지 가져오는 중...' : '📷 커버 이미지 가져오기'}
           </Button>
