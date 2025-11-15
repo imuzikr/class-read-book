@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -47,6 +47,9 @@ export default function AdminPage() {
   const [loadingLogs, setLoadingLogs] = useState<Map<string, boolean>>(new Map());
   const [resettingPassword, setResettingPassword] = useState<string | null>(null);
   const [deletingUser, setDeletingUser] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'users' | 'books'>('users');
+  const statsCardsRef = useRef<HTMLDivElement>(null);
+  const [statsCardsHeight, setStatsCardsHeight] = useState<number>(0);
 
   const fetchData = async () => {
     try {
@@ -184,6 +187,30 @@ export default function AdminPage() {
       setLoading(false);
     }
   };
+
+  // 통계 카드 높이 측정
+  useEffect(() => {
+    const updateHeight = () => {
+      if (statsCardsRef.current) {
+        const height = statsCardsRef.current.offsetHeight;
+        setStatsCardsHeight(height);
+      }
+    };
+
+    // 초기 측정
+    updateHeight();
+    
+    // 리사이즈 시 재측정
+    window.addEventListener('resize', updateHeight);
+    
+    // stats가 변경될 때도 재측정 (숫자가 바뀌면 높이가 달라질 수 있음)
+    const timeoutId = setTimeout(updateHeight, 100);
+    
+    return () => {
+      window.removeEventListener('resize', updateHeight);
+      clearTimeout(timeoutId);
+    };
+  }, [stats, loading]);
 
   useEffect(() => {
     if (!authLoading && !adminLoading) {
@@ -394,13 +421,43 @@ export default function AdminPage() {
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         {/* 왼쪽 사이드바 */}
         <div className="w-full lg:w-80 flex-shrink-0">
-          <div className="space-y-4">
-            {/* 사용자 목록 */}
+          <div className="space-y-6">
+            {/* 통계 카드 높이만큼의 여백 (상세 카드 시작 위치 맞추기) */}
+            {/* space-y-6 간격은 자동으로 적용됨 */}
+            {statsCardsHeight > 0 && (
+              <div className="hidden lg:block" style={{ height: `${statsCardsHeight}px` }} aria-hidden="true"></div>
+            )}
+            {/* 통합 카드: 사용자 및 책 목록 */}
             <Card>
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold">사용자 ({users.length})</h2>
+              {/* 탭 헤더 */}
+              <div className="border-b border-gray-200">
+                <div className="flex">
+                  <button
+                    onClick={() => setActiveTab('users')}
+                    className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2 ${
+                      activeTab === 'users'
+                        ? 'text-primary-600 border-primary-600 bg-primary-50'
+                        : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    사용자 ({users.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('books')}
+                    className={`flex-1 px-4 py-3 text-sm font-semibold transition-colors border-b-2 ${
+                      activeTab === 'books'
+                        ? 'text-primary-600 border-primary-600 bg-primary-50'
+                        : 'text-gray-600 border-transparent hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    책 ({books.length})
+                  </button>
+                </div>
               </div>
-              <div className="max-h-[400px] overflow-y-auto">
+              
+              {/* 사용자 탭 내용 */}
+              {activeTab === 'users' && (
+                <div className="max-h-[400px] overflow-y-auto">
                 {users.map((userData) => (
                   <div
                     key={userData.id}
@@ -458,15 +515,12 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </Card>
-
-            {/* 책 목록 */}
-            <Card>
-              <div className="p-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold">책 ({books.length})</h2>
-              </div>
-              <div className="max-h-[400px] overflow-y-auto">
+                </div>
+              )}
+              
+              {/* 책 탭 내용 */}
+              {activeTab === 'books' && (
+                <div className="max-h-[400px] overflow-y-auto">
                 {books.map((book) => {
                   const progress = book.totalPages > 0 
                     ? Math.round((book.currentPage / book.totalPages) * 100) 
@@ -517,17 +571,17 @@ export default function AdminPage() {
                     </div>
                   );
                 })}
-              </div>
+                </div>
+              )}
             </Card>
           </div>
         </div>
 
         {/* 오른쪽 메인 콘텐츠 영역 */}
         <div className="flex-1 min-w-0">
-
-          {/* 통계 화면 (기본) */}
-          {!selectedUser && !selectedBook && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="space-y-6">
+            {/* 통계 카드 - 항상 표시 */}
+            <div ref={statsCardsRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <Card>
                 <div className="text-center">
                   <div className="text-2xl sm:text-3xl font-bold text-primary-600 mb-2">
@@ -564,10 +618,9 @@ export default function AdminPage() {
                 </div>
               </Card>
             </div>
-          )}
 
-          {/* 선택된 사용자 상세 정보 */}
-          {selectedUser && (
+            {/* 선택된 사용자 상세 정보 */}
+            {selectedUser && (
             <Card>
               <div className="mb-6">
                 <div className="flex items-start gap-4 mb-4">
@@ -738,8 +791,8 @@ export default function AdminPage() {
             </Card>
           )}
 
-          {/* 선택된 책 상세 정보 */}
-          {selectedBook && !selectedUser && (
+            {/* 선택된 책 상세 정보 */}
+            {selectedBook && !selectedUser && (
             <Card>
               <div className="mb-6">
                 <div className="flex flex-col sm:flex-row items-start gap-4 mb-4">
@@ -897,7 +950,8 @@ export default function AdminPage() {
                 )}
               </div>
             </Card>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
