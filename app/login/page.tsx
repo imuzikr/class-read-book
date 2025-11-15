@@ -76,7 +76,8 @@ export default function LoginPage() {
           }
         } else {
           console.log('리다이렉트 결과 없음 - getRedirectResult가 null 반환');
-          console.log('현재 인증 상태 확인 중...', { hasUser: !!user, userId: user?.uid });
+          console.log('현재 인증 상태 확인 중...', { hasUser: !!user, userId: user?.uid, authLoading });
+          
           // getRedirectResult가 null이어도 이미 로그인되어 있을 수 있음
           // useAuth의 user 상태를 확인해야 함
           // user 상태가 있으면 리다이렉트가 완료된 것으로 간주
@@ -110,44 +111,11 @@ export default function LoginPage() {
               console.error('사용자 데이터 처리 실패:', dbError);
             }
           } else {
-            // user가 아직 없으면 잠시 대기 후 다시 확인
-            console.log('user 상태가 아직 없음, 잠시 대기 후 재확인...');
-            setTimeout(async () => {
-              // authLoading이 완료되고 user가 있으면 처리
-              if (!authLoading && user) {
-                console.log('재확인: 인증 상태 확인됨', { userId: user.uid });
-                redirectResultRef.current = { userId: user.uid, processed: false };
-                
-                // 사용자 데이터가 없으면 생성
-                try {
-                  const existingUserData = await getUserData(user.uid);
-                  if (!existingUserData) {
-                    console.log('새 사용자 데이터 생성 중...');
-                    await createUserData(user.uid, {
-                      email: user.email || '',
-                      name: user.displayName || '사용자',
-                      displayName: user.displayName || '사용자',
-                      photoURL: user.photoURL || '',
-                      level: 1,
-                      exp: 0,
-                      totalPagesRead: 0,
-                      totalBooksRead: 0,
-                      currentStreak: 0,
-                      longestStreak: 0,
-                      isAnonymous: false,
-                      createdAt: Timestamp.now(),
-                      updatedAt: Timestamp.now(),
-                    });
-                    console.log('사용자 데이터 생성 완료');
-                  }
-                } catch (dbError: any) {
-                  console.error('사용자 데이터 처리 실패:', dbError);
-                }
-              } else {
-                console.log('재확인: 여전히 user 상태 없음', { authLoading, hasUser: !!user });
-                setProcessingRedirect(false);
-              }
-            }, 1000); // 1초 후 재확인
+            // user가 아직 없으면 onAuthStateChanged가 트리거될 때까지 대기
+            console.log('user 상태가 아직 없음 - onAuthStateChanged 대기 중...');
+            console.log('authLoading 상태:', authLoading);
+            // processingRedirect를 false로 설정하지 않고 대기
+            // user 상태가 업데이트되면 두 번째 useEffect에서 처리됨
           }
         }
       } catch (err: any) {
@@ -186,8 +154,8 @@ export default function LoginPage() {
         router.push('/dashboard');
       });
     }
-    // getRedirectResult가 null이었지만 user가 나중에 업데이트된 경우
-    else if (!redirectResultRef.current && user && !authLoading && !processingRedirect) {
+    // getRedirectResult가 null이었지만 user가 나중에 업데이트된 경우 (리다이렉트 완료)
+    else if (!redirectResultRef.current && user && !authLoading && processingRedirect) {
       // getRedirectResult가 null이었지만 user가 있으면 리다이렉트가 완료된 것으로 간주
       console.log('user 상태 업데이트 감지 (getRedirectResult null이었지만 user 존재), 처리 시작', { userId: user.uid });
       redirectResultRef.current = { userId: user.uid, processed: false };
