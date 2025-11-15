@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
-import { useAuth } from '@/hooks/useAuth';
+import { signIn, signInWithGoogle } from '@/lib/firebase/auth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import Button from '@/components/ui/Button';
@@ -13,217 +12,10 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [processingRedirect, setProcessingRedirect] = useState(false);
-  
-  // 리다이렉트 결과를 저장할 ref (useEffect보다 먼저 선언)
-  const redirectResultRef = useRef<{ userId: string; processed: boolean } | null>(null);
-
-  // 디버깅: user 상태 변경 시 로그 출력
-  useEffect(() => {
-    console.log('=== 인증 상태 디버깅 ===');
-    console.log('authLoading:', authLoading);
-    console.log('user:', user);
-    console.log('user?.uid:', user?.uid);
-    console.log('user?.email:', user?.email);
-    console.log('user?.displayName:', user?.displayName);
-    console.log('user?.providerData:', user?.providerData);
-    console.log('========================');
-  }, [user, authLoading]);
-
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트 (리다이렉트 처리 중이 아닐 때만)
-  // 단, 리다이렉트 결과가 있는 경우는 제외 (별도 useEffect에서 처리)
-  useEffect(() => {
-    if (!authLoading && user && !processingRedirect && !redirectResultRef.current) {
-      console.log('이미 로그인된 사용자 감지, 대시보드로 이동', { userId: user.uid });
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router, processingRedirect]);
-
-  // 페이지 로드 시 리다이렉트 결과 확인 (한 번만 실행)
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      // 이미 처리 중이면 중복 실행 방지
-      if (processingRedirect || redirectResultRef.current?.processed) return;
-      
-      try {
-        setProcessingRedirect(true);
-        console.log('리다이렉트 결과 확인 시작...');
-        const result = await getGoogleRedirectResult();
-        console.log('리다이렉트 결과:', result);
-        
-        if (result && result.user) {
-          const userId = result.user.uid;
-          console.log('Google 로그인 성공 (리다이렉트 결과), 사용자 ID:', userId);
-          redirectResultRef.current = { userId, processed: false };
-          
-          // 사용자 데이터가 없으면 생성
-          try {
-            const existingUserData = await getUserData(userId);
-            if (!existingUserData) {
-              console.log('새 사용자 데이터 생성 중...');
-              await createUserData(userId, {
-                email: result.user.email || '',
-                name: result.user.displayName || '사용자',
-                displayName: result.user.displayName || '사용자',
-                photoURL: result.user.photoURL || '',
-                level: 1,
-                exp: 0,
-                totalPagesRead: 0,
-                totalBooksRead: 0,
-                currentStreak: 0,
-                longestStreak: 0,
-                isAnonymous: false,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-              });
-              console.log('사용자 데이터 생성 완료');
-            }
-          } catch (dbError: any) {
-            console.error('사용자 데이터 처리 실패:', dbError);
-          }
-        } else {
-          console.log('리다이렉트 결과 없음 - getRedirectResult가 null 반환');
-          console.log('현재 인증 상태 확인 중...', { hasUser: !!user, userId: user?.uid, authLoading });
-          
-          // getRedirectResult가 null이어도 이미 로그인되어 있을 수 있음
-          // useAuth의 user 상태를 확인해야 함
-          // user 상태가 있으면 리다이렉트가 완료된 것으로 간주
-          if (user) {
-            console.log('인증 상태 확인됨 (getRedirectResult null이지만 user 존재), 사용자 데이터 확인 중...');
-            redirectResultRef.current = { userId: user.uid, processed: false };
-            
-            // 사용자 데이터가 없으면 생성
-            try {
-              const existingUserData = await getUserData(user.uid);
-              if (!existingUserData) {
-                console.log('새 사용자 데이터 생성 중...');
-                await createUserData(user.uid, {
-                  email: user.email || '',
-                  name: user.displayName || '사용자',
-                  displayName: user.displayName || '사용자',
-                  photoURL: user.photoURL || '',
-                  level: 1,
-                  exp: 0,
-                  totalPagesRead: 0,
-                  totalBooksRead: 0,
-                  currentStreak: 0,
-                  longestStreak: 0,
-                  isAnonymous: false,
-                  createdAt: Timestamp.now(),
-                  updatedAt: Timestamp.now(),
-                });
-                console.log('사용자 데이터 생성 완료');
-              }
-            } catch (dbError: any) {
-              console.error('사용자 데이터 처리 실패:', dbError);
-            }
-          } else {
-            // user가 아직 없으면 onAuthStateChanged가 트리거될 때까지 대기
-            console.log('user 상태가 아직 없음 - onAuthStateChanged 대기 중...');
-            console.log('authLoading 상태:', authLoading);
-            
-            // authLoading이 완료되었고 user도 없으면 리다이렉트가 아닌 것으로 간주
-            // 일정 시간 후 processingRedirect를 false로 설정하여 로그인 폼 표시
-            if (!authLoading) {
-              console.log('authLoading 완료, user 없음 - 리다이렉트가 아닌 것으로 간주');
-              setTimeout(() => {
-                if (!user && !authLoading) {
-                  console.log('타임아웃: processingRedirect를 false로 설정하여 로그인 폼 표시');
-                  setProcessingRedirect(false);
-                }
-              }, 2000); // 2초 후 로그인 폼 표시
-            }
-          }
-        }
-      } catch (err: any) {
-        console.error('리다이렉트 결과 처리 실패:', err);
-        setError('로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-        setProcessingRedirect(false);
-      }
-    };
-
-    // 인증 로딩이 완료된 후에만 실행 (한 번만)
-    if (!authLoading && !redirectResultRef.current?.processed) {
-      handleRedirectResult();
-    }
-  }, [authLoading, processingRedirect]);
-
-  // 인증 상태가 업데이트되면 리다이렉트 처리
-  useEffect(() => {
-    // 리다이렉트 결과가 있고 아직 처리되지 않았으며, user 상태가 업데이트된 경우
-    if (redirectResultRef.current && !redirectResultRef.current.processed && user && user.uid === redirectResultRef.current.userId) {
-      console.log('인증 상태 확인됨 (리다이렉트 결과), 페이지 이동 시작', { userId: user.uid });
-      const userId = redirectResultRef.current.userId;
-      redirectResultRef.current.processed = true; // 처리 완료 표시
-      setProcessingRedirect(false);
-      
-      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-      getUserData(userId).then((userData) => {
-        if (userData && !userData.character) {
-          console.log('캐릭터 없음, 캐릭터 선택 페이지로 이동');
-          router.push('/character/select');
-        } else {
-          console.log('대시보드로 이동');
-          router.push('/dashboard');
-        }
-      }).catch((error) => {
-        console.error('사용자 데이터 가져오기 실패:', error);
-        router.push('/dashboard');
-      });
-    }
-    // getRedirectResult가 null이었지만 user가 나중에 업데이트된 경우 (리다이렉트 완료)
-    else if (!redirectResultRef.current && user && !authLoading && processingRedirect) {
-      // getRedirectResult가 null이었지만 user가 있으면 리다이렉트가 완료된 것으로 간주
-      console.log('user 상태 업데이트 감지 (getRedirectResult null이었지만 user 존재), 처리 시작', { userId: user.uid });
-      redirectResultRef.current = { userId: user.uid, processed: false };
-      
-      // 사용자 데이터가 없으면 생성
-      getUserData(user.uid).then(async (existingUserData) => {
-        if (!existingUserData) {
-          console.log('새 사용자 데이터 생성 중...');
-          await createUserData(user.uid, {
-            email: user.email || '',
-            name: user.displayName || '사용자',
-            displayName: user.displayName || '사용자',
-            photoURL: user.photoURL || '',
-            level: 1,
-            exp: 0,
-            totalPagesRead: 0,
-            totalBooksRead: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            isAnonymous: false,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
-          });
-          console.log('사용자 데이터 생성 완료');
-        }
-        
-        // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-        const userData = await getUserData(user.uid);
-        if (userData && !userData.character) {
-          console.log('캐릭터 없음, 캐릭터 선택 페이지로 이동');
-          router.push('/character/select');
-        } else {
-          console.log('대시보드로 이동');
-          router.push('/dashboard');
-        }
-      }).catch((error) => {
-        console.error('사용자 데이터 처리 실패:', error);
-        router.push('/dashboard');
-      });
-    }
-    // processingRedirect가 true인데 user가 없고 authLoading도 완료된 경우 (리다이렉트 아님)
-    else if (processingRedirect && !user && !authLoading && !redirectResultRef.current) {
-      console.log('리다이렉트가 아닌 것으로 확인, 로그인 폼 표시');
-      setProcessingRedirect(false);
-    }
-  }, [user, router, processingRedirect, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,25 +37,52 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 리다이렉트 방식으로 Google 로그인 시작
-      await signInWithGoogle();
-      // 리다이렉트가 시작되면 이 함수는 여기서 종료됨
-      // 실제 로그인 처리는 리다이렉트 후 getRedirectResult로 처리됨
+      const userCredential = await signInWithGoogle();
+      const userId = userCredential.user.uid;
+      
+      // 사용자 데이터가 없으면 생성
+      try {
+        const existingUserData = await getUserData(userId);
+        if (!existingUserData) {
+          await createUserData(userId, {
+            email: userCredential.user.email || '',
+            name: userCredential.user.displayName || '사용자',
+            displayName: userCredential.user.displayName || '사용자',
+            photoURL: userCredential.user.photoURL || '',
+            level: 1,
+            exp: 0,
+            totalPagesRead: 0,
+            totalBooksRead: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            isAnonymous: false,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+        }
+      } catch (dbError: any) {
+        console.error('사용자 데이터 처리 실패:', dbError);
+        // Firestore 에러가 있어도 로그인은 성공했으므로 계속 진행
+      }
+
+      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+      try {
+        const userData = await getUserData(userId);
+        if (userData && !userData.character) {
+          window.location.href = '/character/select';
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch (error) {
+        // 오류 발생 시 대시보드로 이동
+        window.location.href = '/dashboard';
+      }
     } catch (err: any) {
       console.error('Google 로그인 에러:', err);
       setError(err.message || 'Google 로그인에 실패했습니다.');
       setLoading(false);
     }
   };
-
-  // 인증 로딩 중이거나 리다이렉트 처리 중이면 로딩 표시
-  if (authLoading || processingRedirect) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-400">로그인 처리 중...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-md mx-auto mt-12">

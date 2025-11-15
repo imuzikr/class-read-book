@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signUp, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
-import { useAuth } from '@/hooks/useAuth';
+import { signUp, signInWithGoogle } from '@/lib/firebase/auth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import Button from '@/components/ui/Button';
@@ -13,85 +12,12 @@ import Link from 'next/link';
 
 export default function SignupPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [processingRedirect, setProcessingRedirect] = useState(false);
-
-  // 이미 로그인된 사용자는 대시보드로 리다이렉트
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.push('/dashboard');
-    }
-  }, [user, authLoading, router]);
-
-  // 페이지 로드 시 리다이렉트 결과 확인
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      // 이미 처리 중이면 중복 실행 방지
-      if (processingRedirect) return;
-      
-      try {
-        setProcessingRedirect(true);
-        const result = await getGoogleRedirectResult();
-        
-        if (result && result.user) {
-          const userId = result.user.uid;
-          
-          // 사용자 데이터가 이미 있는지 확인
-          const existingUserData = await getUserData(userId);
-          
-          if (!existingUserData) {
-            // 사용자 데이터 생성 (캐릭터는 나중에 선택)
-            try {
-              await createUserData(userId, {
-                email: result.user.email || '',
-                name: result.user.displayName || '사용자',
-                displayName: result.user.displayName || '사용자',
-                photoURL: result.user.photoURL || '',
-                level: 1,
-                exp: 0,
-                totalPagesRead: 0,
-                totalBooksRead: 0,
-                currentStreak: 0,
-                longestStreak: 0,
-                isAnonymous: false,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-              });
-            } catch (dbError: any) {
-              console.error('사용자 데이터 생성 실패:', dbError);
-            }
-          }
-
-          // 인증 상태가 설정될 때까지 잠시 대기
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-          const userData = await getUserData(userId);
-          if (userData && !userData.character) {
-            router.push('/character/select');
-          } else {
-            router.push('/dashboard');
-          }
-        }
-      } catch (err: any) {
-        console.error('리다이렉트 결과 처리 실패:', err);
-        setError('회원가입 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
-      } finally {
-        setProcessingRedirect(false);
-      }
-    };
-
-    // 인증 로딩이 완료된 후에만 실행
-    if (!authLoading) {
-      handleRedirectResult();
-    }
-  }, [authLoading, router, processingRedirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,25 +69,49 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      // 리다이렉트 방식으로 Google 로그인 시작
-      await signInWithGoogle();
-      // 리다이렉트가 시작되면 이 함수는 여기서 종료됨
-      // 실제 로그인 처리는 리다이렉트 후 getRedirectResult로 처리됨
+      const userCredential = await signInWithGoogle();
+      const userId = userCredential.user.uid;
+      
+      // 사용자 데이터가 이미 있는지 확인
+      const existingUserData = await getUserData(userId);
+      
+      if (!existingUserData) {
+        // 사용자 데이터 생성 (캐릭터는 나중에 선택)
+        try {
+          await createUserData(userId, {
+            email: userCredential.user.email || '',
+            name: userCredential.user.displayName || '사용자',
+            displayName: userCredential.user.displayName || '사용자',
+            photoURL: userCredential.user.photoURL || '',
+            level: 1,
+            exp: 0,
+            totalPagesRead: 0,
+            totalBooksRead: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            isAnonymous: false,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now(),
+          });
+        } catch (dbError: any) {
+          console.error('사용자 데이터 생성 실패:', dbError);
+          // Firestore 에러가 있어도 로그인은 성공했으므로 계속 진행
+        }
+      }
+
+      // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+      const userData = await getUserData(userId);
+      if (userData && !userData.character) {
+        window.location.href = '/character/select';
+      } else {
+        window.location.href = '/dashboard';
+      }
     } catch (err: any) {
       console.error('Google 회원가입 에러:', err);
       setError(err.message || 'Google 회원가입에 실패했습니다.');
       setLoading(false);
     }
   };
-
-  // 인증 로딩 중이거나 리다이렉트 처리 중이면 로딩 표시
-  if (authLoading || processingRedirect) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-gray-400">회원가입 처리 중...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-md mx-auto mt-12">
