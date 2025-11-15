@@ -21,9 +21,10 @@ export default function LoginPage() {
   const [processingRedirect, setProcessingRedirect] = useState(false);
 
   // 이미 로그인된 사용자는 대시보드로 리다이렉트 (리다이렉트 처리 중이 아닐 때만)
+  // 단, 리다이렉트 결과가 있는 경우는 제외 (별도 useEffect에서 처리)
   useEffect(() => {
-    if (!authLoading && user && !processingRedirect) {
-      console.log('이미 로그인된 사용자 감지, 대시보드로 이동');
+    if (!authLoading && user && !processingRedirect && !redirectResultRef.current) {
+      console.log('이미 로그인된 사용자 감지, 대시보드로 이동', { userId: user.uid });
       router.push('/dashboard');
     }
   }, [user, authLoading, router, processingRedirect]);
@@ -75,9 +76,42 @@ export default function LoginPage() {
           }
         } else {
           console.log('리다이렉트 결과 없음 - getRedirectResult가 null 반환');
+          console.log('현재 인증 상태 확인 중...', { hasUser: !!user, userId: user?.uid });
           // getRedirectResult가 null이어도 이미 로그인되어 있을 수 있음
           // useAuth의 user 상태를 확인해야 함
-          setProcessingRedirect(false);
+          // user 상태가 있으면 리다이렉트가 완료된 것으로 간주
+          if (user) {
+            console.log('인증 상태 확인됨 (getRedirectResult null이지만 user 존재), 사용자 데이터 확인 중...');
+            redirectResultRef.current = { userId: user.uid, processed: false };
+            
+            // 사용자 데이터가 없으면 생성
+            try {
+              const existingUserData = await getUserData(user.uid);
+              if (!existingUserData) {
+                console.log('새 사용자 데이터 생성 중...');
+                await createUserData(user.uid, {
+                  email: user.email || '',
+                  name: user.displayName || '사용자',
+                  displayName: user.displayName || '사용자',
+                  photoURL: user.photoURL || '',
+                  level: 1,
+                  exp: 0,
+                  totalPagesRead: 0,
+                  totalBooksRead: 0,
+                  currentStreak: 0,
+                  longestStreak: 0,
+                  isAnonymous: false,
+                  createdAt: Timestamp.now(),
+                  updatedAt: Timestamp.now(),
+                });
+                console.log('사용자 데이터 생성 완료');
+              }
+            } catch (dbError: any) {
+              console.error('사용자 데이터 처리 실패:', dbError);
+            }
+          } else {
+            setProcessingRedirect(false);
+          }
         }
       } catch (err: any) {
         console.error('리다이렉트 결과 처리 실패:', err);
