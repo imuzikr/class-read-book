@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { signIn, signInWithGoogle } from '@/lib/firebase/auth';
+import { signIn, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -26,16 +26,99 @@ export default function LoginPage() {
     }
   }, [user, authLoading, router]);
 
+  // Google 리다이렉트 결과 처리
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getGoogleRedirectResult();
+        if (result && result.user) {
+          const userId = result.user.uid;
+
+          // 사용자 데이터가 없으면 생성
+          try {
+            const existingUserData = await getUserData(userId);
+            if (!existingUserData) {
+              await createUserData(userId, {
+                email: result.user.email || '',
+                name: result.user.displayName || '사용자',
+                displayName: result.user.displayName || '사용자',
+                photoURL: result.user.photoURL || '',
+                level: 1,
+                exp: 0,
+                totalPagesRead: 0,
+                totalBooksRead: 0,
+                currentStreak: 0,
+                longestStreak: 0,
+                isAnonymous: false,
+                createdAt: Timestamp.now(),
+                updatedAt: Timestamp.now(),
+              });
+            }
+          } catch (dbError: any) {
+            console.error('사용자 데이터 처리 실패:', dbError);
+          }
+
+          // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
+          try {
+            const userData = await getUserData(userId);
+            if (userData && !userData.character) {
+              router.push('/character/select');
+            } else {
+              router.push('/dashboard');
+            }
+          } catch (dbError: any) {
+            console.error('사용자 데이터 확인 실패:', dbError);
+            router.push('/dashboard');
+          }
+        }
+      } catch (error) {
+        console.error('리다이렉트 결과 처리 실패:', error);
+      }
+    };
+
+    if (!authLoading) {
+      handleRedirectResult();
+    }
+  }, [authLoading, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      await signIn(email, password);
-      router.push('/dashboard');
+      const result = await signIn(email, password);
+      const userId = result.user.uid;
+
+      // 사용자 데이터 확인 및 캐릭터 선택 페이지로 리다이렉트
+      try {
+        const userData = await getUserData(userId);
+        if (userData && !userData.character) {
+          router.push('/character/select');
+        } else {
+          router.push('/dashboard');
+        }
+      } catch (dbError: any) {
+        console.error('사용자 데이터 확인 실패:', dbError);
+        // 데이터 확인 실패해도 대시보드로 이동
+        router.push('/dashboard');
+      }
     } catch (err: any) {
-      setError(err.message || '로그인에 실패했습니다.');
+      console.error('로그인 에러:', err);
+      // Firebase 에러 메시지를 사용자 친화적으로 변환
+      let errorMessage = '로그인에 실패했습니다.';
+      if (err.code === 'auth/user-not-found') {
+        errorMessage = '등록되지 않은 이메일입니다.';
+      } else if (err.code === 'auth/wrong-password') {
+        errorMessage = '비밀번호가 올바르지 않습니다.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = '올바른 이메일 형식이 아닙니다.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = '너무 많은 시도가 있었습니다. 잠시 후 다시 시도해주세요.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -71,18 +154,45 @@ export default function LoginPage() {
         }
       } catch (dbError: any) {
         console.error('사용자 데이터 처리 실패:', dbError);
+        // 사용자 데이터 생성 실패해도 계속 진행
       }
 
       // 캐릭터가 없으면 선택 페이지로, 있으면 대시보드로
-      const userData = await getUserData(userId);
-      if (userData && !userData.character) {
-        router.push('/character/select');
-      } else {
+      try {
+        const userData = await getUserData(userId);
+        if (userData && !userData.character) {
+          router.push('/character/select');
+        } else {
+          router.push('/dashboard');
+        }
+      } catch (dbError: any) {
+        console.error('사용자 데이터 확인 실패:', dbError);
+        // 데이터 확인 실패해도 대시보드로 이동
         router.push('/dashboard');
       }
     } catch (err: any) {
       console.error('Google 로그인 에러:', err);
-      setError(err.message || 'Google 로그인에 실패했습니다.');
+      // 리다이렉트가 시작된 경우 에러를 표시하지 않음 (페이지가 이동됨)
+      if (err.message === 'REDIRECT_INITIATED') {
+        setError('');
+        // 리다이렉트가 시작되었으므로 로딩 상태 유지
+        return;
+      }
+      
+      // Firebase 에러 메시지를 사용자 친화적으로 변환
+      let errorMessage = 'Google 로그인에 실패했습니다.';
+      if (err.code === 'auth/popup-closed-by-user') {
+        errorMessage = '로그인 팝업이 닫혔습니다. 다시 시도해주세요.';
+      } else if (err.code === 'auth/popup-blocked') {
+        errorMessage = '팝업이 차단되어 리다이렉트 방식으로 전환합니다...';
+        // 리다이렉트가 자동으로 시작되므로 에러를 표시하지 않음
+        return;
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        errorMessage = '로그인 요청이 취소되었습니다. 다시 시도해주세요.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
       setLoading(false);
     }
   };

@@ -10,6 +10,12 @@ export const metadata: Metadata = {
   description: "학생들의 독서 활동을 게임화하여 장려하는 웹 애플리케이션",
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

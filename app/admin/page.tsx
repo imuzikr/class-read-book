@@ -10,6 +10,7 @@ import {
   getAllReadingLogs,
   getAllReviews,
   getUserData,
+  getReadingLogs,
   type UserData,
   type Book,
   type ReadingLog,
@@ -35,24 +36,11 @@ export default function AdminPage() {
   const [bookReaders, setBookReaders] = useState<Map<string, Array<{ userId: string; userName: string; progress: number }>>>(new Map());
   const [activeTab, setActiveTab] = useState<'stats' | 'users' | 'books'>('stats');
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [selectedBookReaders, setSelectedBookReaders] = useState<Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>>([]);
+  const [selectedBookReaders, setSelectedBookReaders] = useState<Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number; bookId: string }>>([]);
+  const [readerLogs, setReaderLogs] = useState<Map<string, ReadingLog[]>>(new Map());
+  const [loadingLogs, setLoadingLogs] = useState<Map<string, boolean>>(new Map());
+  const [expandedReaders, setExpandedReaders] = useState<Set<string>>(new Set());
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  useEffect(() => {
-    if (!authLoading && !adminLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      
-      if (!isAdminUser) {
-        router.push('/');
-        return;
-      }
-
-      fetchData();
-    }
-  }, [user, authLoading, adminLoading, isAdminUser, router]);
 
   const fetchData = async () => {
     try {
@@ -191,6 +179,23 @@ export default function AdminPage() {
     }
   };
 
+  useEffect(() => {
+    if (!authLoading && !adminLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      
+      if (!isAdminUser) {
+        router.push('/');
+        return;
+      }
+
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, authLoading, adminLoading, isAdminUser, router]);
+
   // 선택된 책이 변경될 때 사용자 목록 가져오기
   useEffect(() => {
     if (selectedBook) {
@@ -218,17 +223,45 @@ export default function AdminPage() {
                 status: b.status,
                 currentPage: b.currentPage,
                 totalPages: b.totalPages,
+                bookId: b.id || '',
               };
             }
             return null;
           })
         );
         
-        const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number }>;
+        const validReaders = readersDetails.filter((reader) => reader !== null) as Array<{ userId: string; userName: string; progress: number; status: string; currentPage: number; totalPages: number; bookId: string }>;
         setSelectedBookReaders(validReaders);
+        
+        // 각 사용자의 독서 로그 자동 로드
+        const logsMap = new Map<string, ReadingLog[]>();
+        const loadingMap = new Map<string, boolean>();
+        const expandedSet = new Set<string>();
+        
+        // 모든 사용자의 독서 로그를 병렬로 로드
+        const logPromises = validReaders.map(async (reader) => {
+          loadingMap.set(reader.userId, true);
+          try {
+            const logs = await getReadingLogs(reader.userId, reader.bookId, 100);
+            logsMap.set(reader.userId, logs);
+            expandedSet.add(reader.userId);
+          } catch (error) {
+            console.error(`사용자 ${reader.userId} 독서 로그 가져오기 실패:`, error);
+            logsMap.set(reader.userId, []);
+          } finally {
+            loadingMap.set(reader.userId, false);
+          }
+        });
+        
+        await Promise.all(logPromises);
+        setReaderLogs(logsMap);
+        setLoadingLogs(loadingMap);
+        setExpandedReaders(expandedSet);
       };
       
-      fetchReaders();
+      fetchReaders().catch((error) => {
+        console.error('독서 로그 로드 실패:', error);
+      });
     } else {
       setIsModalOpen(false);
       setSelectedBookReaders([]);
@@ -412,8 +445,10 @@ export default function AdminPage() {
       {/* 책 목록 탭 */}
       {activeTab === 'books' && (
         <Card>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle">
+              <div className="overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -456,7 +491,7 @@ export default function AdminPage() {
                         handleBookClick(book);
                       }}
                     >
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {/* 책 커버 이미지 썸네일 */}
                           <div className="flex-shrink-0">
@@ -551,7 +586,7 @@ export default function AdminPage() {
       {/* 책 상세 모달 */}
       {typeof window !== 'undefined' && selectedBook && createPortal(
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-2 sm:p-4"
           style={{ zIndex: 9999, position: 'fixed' }}
           onClick={() => {
             setSelectedBook(null);
@@ -559,15 +594,15 @@ export default function AdminPage() {
           }}
         >
           <div 
-            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex items-start gap-4">
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4 relative">
+                <div className="flex items-start gap-3 sm:gap-4 w-full sm:w-auto">
                   {/* 책 커버 이미지 */}
                   <div className="flex-shrink-0">
-                    <div className="w-24 h-32 bg-gray-200 rounded overflow-hidden shadow-sm">
+                    <div className="w-16 h-20 sm:w-24 sm:h-32 bg-gray-200 rounded overflow-hidden shadow-sm">
                       {selectedBook.coverImage ? (
                         <img
                           src={selectedBook.coverImage}
@@ -586,10 +621,10 @@ export default function AdminPage() {
                     </div>
                   </div>
                   {/* 책 정보 */}
-                  <div>
-                    <h2 className="text-2xl font-bold mb-2">{selectedBook.title}</h2>
-                    <p className="text-lg text-gray-600 mb-4">{selectedBook.author}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl sm:text-2xl font-bold mb-2 break-words">{selectedBook.title}</h2>
+                    <p className="text-base sm:text-lg text-gray-600 mb-2 sm:mb-4">{selectedBook.author}</p>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                       <span>총 페이지: {selectedBook.totalPages}페이지</span>
                       {selectedBook.createdAt && (
                         <span>등록일: {new Date(selectedBook.createdAt.toMillis()).toLocaleDateString('ko-KR')}</span>
@@ -603,7 +638,7 @@ export default function AdminPage() {
                     setSelectedBook(null);
                     setIsModalOpen(false);
                   }}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                  className="text-gray-400 hover:text-gray-600 text-2xl absolute top-4 right-4 sm:relative sm:top-0 sm:right-0"
                 >
                   ×
                 </button>
@@ -618,54 +653,116 @@ export default function AdminPage() {
                   <p className="text-gray-500 text-center py-8">이 책을 읽고 있는 사용자가 없습니다.</p>
                 ) : (
                   <div className="space-y-4">
-                    {selectedBookReaders.map((reader) => (
-                      <Card key={reader.userId} className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <span className="font-semibold text-lg">{reader.userName}</span>
-                              <span
-                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                  reader.status === 'completed'
-                                    ? 'bg-green-100 text-green-800'
+                    {selectedBookReaders.map((reader) => {
+                      const isExpanded = expandedReaders.has(reader.userId);
+                      const logs = readerLogs.get(reader.userId) || [];
+                      const isLoading = loadingLogs.get(reader.userId) || false;
+                      
+                      return (
+                        <Card key={reader.userId} className="p-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <span className="font-semibold text-lg">{reader.userName}</span>
+                                <span
+                                  className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                    reader.status === 'completed'
+                                      ? 'bg-green-100 text-green-800'
+                                      : reader.status === 'reading'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}
+                                >
+                                  {reader.status === 'completed'
+                                    ? '완독'
                                     : reader.status === 'reading'
-                                    ? 'bg-blue-100 text-blue-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                {reader.status === 'completed'
-                                  ? '완독'
-                                  : reader.status === 'reading'
-                                  ? '읽는 중'
-                                  : '일시정지'}
-                              </span>
-                            </div>
-                            <div className="mb-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-sm text-gray-600">
-                                  {reader.currentPage} / {reader.totalPages} 페이지
-                                </span>
-                                <span className="text-sm font-medium text-gray-700">
-                                  ({reader.progress}%)
+                                    ? '읽는 중'
+                                    : '일시정지'}
                                 </span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-3">
-                                <div
-                                  className={`h-3 rounded-full transition-all ${
-                                    reader.status === 'completed'
-                                      ? 'bg-green-500'
-                                      : reader.status === 'reading'
-                                      ? 'bg-blue-500'
-                                      : 'bg-gray-400'
-                                  }`}
-                                  style={{ width: `${reader.progress}%` }}
-                                />
+                              <div className="mb-3">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-sm text-gray-600">
+                                    {reader.currentPage} / {reader.totalPages} 페이지
+                                  </span>
+                                  <span className="text-sm font-medium text-gray-700">
+                                    ({reader.progress}%)
+                                  </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                  <div
+                                    className={`h-3 rounded-full transition-all ${
+                                      reader.status === 'completed'
+                                        ? 'bg-green-500'
+                                        : reader.status === 'reading'
+                                        ? 'bg-blue-500'
+                                        : 'bg-gray-400'
+                                    }`}
+                                    style={{ width: `${reader.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+                              
+                              {/* 독서 로그 목록 - 기본적으로 표시 */}
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                {isLoading ? (
+                                  <div className="text-center py-4 text-gray-500">
+                                    독서 기록을 불러오는 중...
+                                  </div>
+                                ) : logs.length === 0 ? (
+                                  <div className="text-center py-4 text-gray-500">
+                                    독서 기록이 없습니다.
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <div className="text-sm font-semibold text-gray-700 mb-2">
+                                      독서 기록 ({logs.length}건)
+                                    </div>
+                                    {/* 초기 5개만 보이고 나머지는 스크롤 (각 항목 약 100px 기준) */}
+                                    <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                                      {logs.map((log) => (
+                                        <div
+                                          key={log.id}
+                                          className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                                        >
+                                          <div className="flex justify-between items-start mb-2">
+                                            <div className="text-sm font-medium text-gray-900">
+                                              {log.date
+                                                ? new Date(log.date.toMillis()).toLocaleDateString('ko-KR', {
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric',
+                                                  })
+                                                : '-'}
+                                            </div>
+                                            <div className="text-sm font-semibold text-primary-600">
+                                              +{log.expGained} EXP
+                                            </div>
+                                          </div>
+                                          <div className="text-sm text-gray-600 mb-1">
+                                            {log.pagesRead}페이지 읽음
+                                            {log.startPage && log.endPage && (
+                                              <span className="ml-2">
+                                                ({log.startPage}페이지 ~ {log.endPage}페이지)
+                                              </span>
+                                            )}
+                                          </div>
+                                          {log.notes && (
+                                            <div className="text-sm text-gray-700 mt-2 p-2 bg-white rounded border border-gray-200">
+                                              {log.notes}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </div>
