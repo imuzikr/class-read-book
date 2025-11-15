@@ -527,6 +527,130 @@ export default function AdminPage() {
           홈으로 돌아가기
         </Button>
       </div>
+
+      {/* 책 상세 모달 */}
+      {selectedBook && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => {
+            setSelectedBook(null);
+            setSelectedBookReaders([]);
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex items-start gap-4">
+                  {/* 책 커버 이미지 */}
+                  <div className="flex-shrink-0">
+                    <div className="w-24 h-32 bg-gray-200 rounded overflow-hidden shadow-sm">
+                      {selectedBook.coverImage ? (
+                        <img
+                          src={selectedBook.coverImage}
+                          alt={`${selectedBook.title} 커버`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = getDefaultBookCover();
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                          <span className="text-3xl">📚</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {/* 책 정보 */}
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">{selectedBook.title}</h2>
+                    <p className="text-lg text-gray-600 mb-4">{selectedBook.author}</p>
+                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                      <span>총 페이지: {selectedBook.totalPages}페이지</span>
+                      {selectedBook.createdAt && (
+                        <span>등록일: {new Date(selectedBook.createdAt.toMillis()).toLocaleDateString('ko-KR')}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedBook(null);
+                    setSelectedBookReaders([]);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* 읽는 사용자 목록 */}
+              <div>
+                <h3 className="text-xl font-semibold mb-4">
+                  읽는 사용자 ({selectedBookReaders.length}명)
+                </h3>
+                {selectedBookReaders.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">이 책을 읽고 있는 사용자가 없습니다.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {selectedBookReaders.map((reader) => (
+                      <Card key={reader.userId} className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="font-semibold text-lg">{reader.userName}</span>
+                              <span
+                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                  reader.status === 'completed'
+                                    ? 'bg-green-100 text-green-800'
+                                    : reader.status === 'reading'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}
+                              >
+                                {reader.status === 'completed'
+                                  ? '완독'
+                                  : reader.status === 'reading'
+                                  ? '읽는 중'
+                                  : '일시정지'}
+                              </span>
+                            </div>
+                            <div className="mb-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm text-gray-600">
+                                  {reader.currentPage} / {reader.totalPages} 페이지
+                                </span>
+                                <span className="text-sm font-medium text-gray-700">
+                                  ({reader.progress}%)
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-3">
+                                <div
+                                  className={`h-3 rounded-full transition-all ${
+                                    reader.status === 'completed'
+                                      ? 'bg-green-500'
+                                      : reader.status === 'reading'
+                                      ? 'bg-blue-500'
+                                      : 'bg-gray-400'
+                                  }`}
+                                  style={{ width: `${reader.progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
