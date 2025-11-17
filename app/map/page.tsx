@@ -708,20 +708,7 @@ export default function StatusBarPage() {
                 </div>
               </div>
 
-              {/* 여정 이야기 */}
-              <div className="pt-4 pb-2 border-t">
-                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-100">
-                  <h3 className="text-sm font-semibold text-orange-800 mb-2 flex items-center gap-1">
-                    <span>📖</span>
-                    <span>나의 독서 여정</span>
-                  </h3>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {generateJourneyNarrative()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-2 pt-2 border-t">
+              <div className="space-y-2 pt-4 border-t">
                 <div className="flex justify-between">
                   <span className="text-gray-600">레벨</span>
                   <span className="font-semibold">{currentUser.level}</span>
@@ -741,6 +728,19 @@ export default function StatusBarPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">뱃지</span>
                   <span className="font-semibold">{currentUser.badgesCount}개</span>
+                </div>
+              </div>
+
+              {/* 여정 이야기 */}
+              <div className="pt-4 pb-2 border-t">
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-100">
+                  <h3 className="text-sm font-semibold text-orange-800 mb-2 flex items-center gap-1">
+                    <span>📖</span>
+                    <span>나의 독서 여정</span>
+                  </h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {generateJourneyNarrative()}
+                  </p>
                 </div>
               </div>
             </div>
