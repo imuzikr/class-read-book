@@ -125,9 +125,10 @@ export default function BooksPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">내 서재</h1>
-        <Link href="/books/new">
-          <Button>새 책 추가</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push('/dashboard')}>← 대시보드</Button>
+          <Button onClick={() => router.push('/books/new')}>새 책 추가</Button>
+        </div>
       </div>
 
       {/* 필터 */}

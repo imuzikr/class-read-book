@@ -10,6 +10,7 @@ import { formatDateKorean, getStartOfDay } from '@/lib/utils/date';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
+import Link from 'next/link';
 
 function ReadingLogContent() {
   const router = useRouter();
@@ -360,7 +361,10 @@ function ReadingLogContent() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold">독서 기록</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">독서 기록</h1>
+        <Button variant="outline" onClick={() => router.push('/dashboard')}>← 대시보드</Button>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* 기록 입력 폼 */}

@@ -1,10 +1,18 @@
+'use client';
+
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import WeeklyChampions from '@/components/weekly/WeeklyChampions';
 
 export default function Home() {
   return (
     <div className="space-y-12">
+      {/* Weekly Champions Section */}
+      <section className="pt-8">
+        <WeeklyChampions />
+      </section>
+
       {/* Hero Section */}
       <section className="text-center py-12">
         <h1 className="text-5xl font-bold text-gray-900 mb-4">
