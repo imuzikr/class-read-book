@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserData, getUserBadges, isAdmin } from '@/lib/firebase/firestore';
+import { getUserData, getUserBadges, isAdmin, getBooks, getReadingLogs, getReviews, type Book, type ReadingLog, type Review } from '@/lib/firebase/firestore';
 import { getAllUsers } from '@/lib/firebase/users';
 import { getLevelProgress, getExpToNextLevel, getLevelFromExp, getExpForLevel } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
@@ -34,6 +34,10 @@ export default function StatusBarPage() {
   const [allUsers, setAllUsers] = useState<UserStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserStatus | null>(null);
+  const [userBooks, setUserBooks] = useState<Book[]>([]);
+  const [userReadingLogs, setUserReadingLogs] = useState<ReadingLog[]>([]);
+  const [userReviews, setUserReviews] = useState<Review[]>([]);
+  const [userBadges, setUserBadges] = useState<string[]>([]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -66,6 +70,19 @@ export default function StatusBarPage() {
       }
 
       setUserData(currentUserData);
+
+      // 현재 사용자의 여정 데이터 가져오기 (병렬 처리)
+      Promise.all([
+        getBooks(user.uid),
+        getReadingLogs(user.uid),
+        getReviews(user.uid),
+        getUserBadges(user.uid),
+      ]).then(([books, logs, reviews, badges]) => {
+        setUserBooks(books);
+        setUserReadingLogs(logs);
+        setUserReviews(reviews);
+        setUserBadges(badges);
+      }).catch(err => console.error('여정 데이터 로드 실패:', err));
 
       // 모든 사용자 데이터 가져오기
       const allUsersData = await getAllUsers(50); // 상위 50명만 표시
@@ -149,6 +166,126 @@ export default function StatusBarPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateJourneyNarrative = () => {
+    if (!userData || userBooks.length === 0) {
+      return "아직 독서 여정이 시작되지 않았습니다. 첫 번째 책을 추가하고 멋진 여행을 시작해보세요! 📚";
+    }
+
+    // 통계 계산
+    const completedBooks = userBooks.filter(b => b.status === 'completed');
+    const readingBooks = userBooks.filter(b => b.status === 'reading');
+
+    // 첫 번째 책 시작일
+    const firstBook = [...userBooks].sort((a, b) =>
+      a.startDate.toMillis() - b.startDate.toMillis()
+    )[0];
+    const journeyStartDate = firstBook.startDate.toDate();
+    const daysSinceStart = Math.floor((Date.now() - journeyStartDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // 평균 일일 독서량 계산
+    const avgDailyPages = daysSinceStart > 0
+      ? Math.round(userData.totalPagesRead / daysSinceStart)
+      : userData.totalPagesRead;
+
+    // 레벨업 횟수 (현재 레벨 - 1)
+    const levelUps = userData.level - 1;
+
+    // 최근 완독한 책
+    const recentCompletedBook = completedBooks.length > 0
+      ? [...completedBooks].sort((a, b) =>
+          (b.finishDate?.toMillis() || 0) - (a.finishDate?.toMillis() || 0)
+        )[0]
+      : null;
+
+    // 감상문이 있는 책들
+    const booksWithReviews = userReviews.length;
+
+    // 여정 시작 시기 표현
+    const getJourneyStartPhrase = (days: number) => {
+      if (days < 7) return "이번 주부터";
+      if (days < 30) return `${Math.floor(days / 7)}주 전`;
+      if (days < 365) return `${Math.floor(days / 30)}개월 전`;
+      return `${Math.floor(days / 365)}년 전`;
+    };
+
+    // 레벨에 따른 칭호
+    const getLevelTitle = (level: number) => {
+      if (level >= 10) return "독서 마스터";
+      if (level >= 7) return "독서 전문가";
+      if (level >= 5) return "열정적인 독서가";
+      if (level >= 3) return "성실한 독서가";
+      return "독서 초보자";
+    };
+
+    // 내러티브 생성
+    let narrative = "";
+
+    narrative += `${getJourneyStartPhrase(daysSinceStart)}, "${firstBook.title}"를 펼치며 독서 여정을 시작했습니다. `;
+
+    if (completedBooks.length > 0) {
+      narrative += `그로부터 ${daysSinceStart}일 동안 ${completedBooks.length}권의 책을 완독하며 `;
+      narrative += `총 ${userData.totalPagesRead.toLocaleString()}페이지의 활자를 섭렵했습니다. `;
+    } else {
+      narrative += `${daysSinceStart}일 동안 ${userData.totalPagesRead.toLocaleString()}페이지를 읽으며 꾸준히 나아가고 있습니다. `;
+    }
+
+    if (avgDailyPages > 0) {
+      if (avgDailyPages >= 50) {
+        narrative += `하루 평균 ${avgDailyPages}페이지, 놀라운 독서 속도로 지식의 바다를 항해하고 있습니다. `;
+      } else if (avgDailyPages >= 20) {
+        narrative += `매일 평균 ${avgDailyPages}페이지씩 꾸준히 읽으며 차근차근 성장하고 있습니다. `;
+      } else {
+        narrative += `하루 평균 ${avgDailyPages}페이지, 천천히 그러나 확실하게 전진하고 있습니다. `;
+      }
+    }
+
+    if (userData.currentStreak >= 7) {
+      narrative += `🔥 ${userData.currentStreak}일 연속 독서, 불타는 열정이 느껴집니다! `;
+    } else if (userData.currentStreak >= 3) {
+      narrative += `${userData.currentStreak}일 연속으로 책과 함께하고 있습니다. `;
+    }
+
+    if (booksWithReviews > 0) {
+      narrative += `${booksWithReviews}편의 감상문을 남기며 독서의 흔적을 기록했고, `;
+    }
+
+    narrative += `이 여정을 통해 ${userData.exp.toLocaleString()} 경험치를 획득했습니다. `;
+
+    if (levelUps > 0) {
+      narrative += `${levelUps}번의 레벨업을 거쳐 `;
+    }
+
+    narrative += `현재 레벨 ${userData.level}, ${getLevelTitle(userData.level)}의 경지에 올랐습니다. `;
+
+    if (userBadges.length > 0) {
+      narrative += `그 과정에서 ${userBadges.length}개의 뱃지를 획득하며 다양한 성취를 이뤘습니다. `;
+    }
+
+    if (recentCompletedBook && recentCompletedBook.finishDate) {
+      const daysAgo = Math.floor((Date.now() - recentCompletedBook.finishDate.toMillis()) / (1000 * 60 * 60 * 24));
+      if (daysAgo === 0) {
+        narrative += `오늘 "${recentCompletedBook.title}"를 완독하며 또 하나의 이정표를 세웠습니다. `;
+      } else if (daysAgo === 1) {
+        narrative += `어제 "${recentCompletedBook.title}"를 완독했습니다. `;
+      } else if (daysAgo < 7) {
+        narrative += `${daysAgo}일 전 "${recentCompletedBook.title}"를 완독했습니다. `;
+      }
+    }
+
+    if (readingBooks.length > 0) {
+      if (readingBooks.length === 1) {
+        narrative += `지금은 "${readingBooks[0].title}"를 읽고 있으며, `;
+      } else {
+        narrative += `현재 ${readingBooks.length}권의 책을 동시에 읽으며, `;
+      }
+      narrative += `새로운 지식과 감동을 향해 나아가고 있습니다. `;
+    }
+
+    narrative += `📚✨`;
+
+    return narrative;
   };
 
   const renderRaceTrack = () => {
@@ -541,7 +678,7 @@ export default function StatusBarPage() {
             <div className="space-y-4">
               <div className="text-center">
                 <div className="text-6xl mb-2">
-                  {currentUser.character 
+                  {currentUser.character
                     ? getCharacterEmoji(currentUser.character.animalType)
                     : getCharacterEmoji('bear')
                   }
@@ -571,7 +708,20 @@ export default function StatusBarPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 pt-4 border-t">
+              {/* 여정 이야기 */}
+              <div className="pt-4 pb-2 border-t">
+                <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-100">
+                  <h3 className="text-sm font-semibold text-orange-800 mb-2 flex items-center gap-1">
+                    <span>📖</span>
+                    <span>나의 독서 여정</span>
+                  </h3>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {generateJourneyNarrative()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
                 <div className="flex justify-between">
                   <span className="text-gray-600">레벨</span>
                   <span className="font-semibold">{currentUser.level}</span>
