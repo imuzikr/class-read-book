@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import {
   getAllUsersAdmin,
@@ -468,10 +469,12 @@ export default function AdminPage() {
                   >
                     <div className="flex items-center gap-3">
                       {userData.photoURL ? (
-                        <img
+                        <Image
                           className="h-10 w-10 rounded-full"
                           src={userData.photoURL}
                           alt={userData.displayName || userData.name}
+                          width={40}
+                          height={40}
                         />
                       ) : (
                         <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center">
@@ -537,10 +540,12 @@ export default function AdminPage() {
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0 w-12 h-16 bg-gray-200 rounded overflow-hidden">
                           {book.coverImage ? (
-                            <img
+                            <Image
                               src={book.coverImage}
                               alt={book.title}
                               className="w-full h-full object-cover"
+                              width={48}
+                              height={64}
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
                                 target.src = getDefaultBookCover();
@@ -625,10 +630,12 @@ export default function AdminPage() {
               <div className="mb-6">
                 <div className="flex items-start gap-4 mb-4">
                   {selectedUser.photoURL ? (
-                    <img
+                    <Image
                       className="h-16 w-16 rounded-full"
                       src={selectedUser.photoURL}
                       alt={selectedUser.displayName || selectedUser.name}
+                      width={64}
+                      height={64}
                     />
                   ) : (
                     <div className="h-16 w-16 rounded-full bg-primary-100 flex items-center justify-center">
@@ -691,10 +698,12 @@ export default function AdminPage() {
                               <div className="flex gap-3">
                                 <div className="flex-shrink-0 w-16 h-20 bg-gray-200 rounded overflow-hidden">
                                   {book.coverImage ? (
-                                    <img
+                                    <Image
                                       src={book.coverImage}
                                       alt={book.title}
                                       className="w-full h-full object-cover"
+                                      width={64}
+                                      height={80}
                                       onError={(e) => {
                                         const target = e.target as HTMLImageElement;
                                         target.src = getDefaultBookCover();
@@ -799,10 +808,12 @@ export default function AdminPage() {
                   <div className="flex-shrink-0">
                     <div className="w-24 h-32 bg-gray-200 rounded overflow-hidden shadow-sm">
                       {selectedBook.coverImage ? (
-                        <img
+                        <Image
                           src={selectedBook.coverImage}
                           alt={`${selectedBook.title} 커버`}
                           className="w-full h-full object-cover"
+                          width={96}
+                          height={128}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.src = getDefaultBookCover();

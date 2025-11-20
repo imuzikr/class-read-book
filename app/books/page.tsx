@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { getBooks, deleteBook, type Book } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -26,6 +27,7 @@ export default function BooksPage() {
 
       fetchBooks();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, router]);
 
   const fetchBooks = async () => {
@@ -188,10 +190,12 @@ export default function BooksPage() {
                     <div className="flex-shrink-0">
                       <div className="w-20 h-28 bg-gray-200 rounded overflow-hidden shadow-sm">
                         {book.coverImage ? (
-                          <img
+                          <Image
                             src={book.coverImage}
                             alt={`${book.title} 커버`}
                             className="w-full h-full object-cover"
+                            width={80}
+                            height={112}
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.src = getDefaultBookCover();

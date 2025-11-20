@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, type Book, type ReadingLog } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -57,6 +58,7 @@ export default function BookDetailPage() {
       }
       fetchBook();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading, router, bookId]);
 
   // 독서 기록이 로드되면 시작 페이지 초기값 설정
@@ -335,7 +337,8 @@ export default function BookDetailPage() {
 
       const pagesRead = endPage - startPage + 1;
       const logDate = getStartOfDay(new Date(readingLogForm.date));
-      const newCurrentPage = Math.max(book.currentPage, endPage);
+      // 사용자가 입력한 마지막 페이지를 책의 현재 페이지로 설정 (단, 총 페이지 수를 초과하지 않음)
+      const newCurrentPage = Math.min(endPage, book.totalPages);
 
       // 경험치 계산
       const expGained = calculateExpGain(pagesRead);
@@ -568,10 +571,12 @@ export default function BookDetailPage() {
                 <div className="flex-shrink-0">
                   <div className="w-24 h-32 bg-gray-200 rounded overflow-hidden shadow-sm">
                     {book.coverImage ? (
-                      <img
+                      <Image
                         src={book.coverImage}
                         alt={`${book.title} 커버`}
                         className="w-full h-full object-cover"
+                        width={96}
+                        height={128}
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.src = getDefaultBookCover();

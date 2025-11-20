@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { createBook, checkDuplicateBook } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -245,10 +246,12 @@ export default function NewBookPage() {
                   >
                     <div className="flex items-start space-x-3">
                       {book.image && (
-                        <img
+                        <Image
                           src={book.image}
                           alt={book.title}
                           className="w-16 h-20 object-cover rounded"
+                          width={64}
+                          height={80}
                         />
                       )}
                       <div className="flex-1 min-w-0">
