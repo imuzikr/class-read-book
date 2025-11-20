@@ -116,7 +116,7 @@ const calculateWeeklyPages = async (userId: string): Promise<number> => {
 export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChampion[]> => {
   // 주간 랭킹에서 상위 사용자들 가져오기
   const rankings = await getRankings('weekly', 50); // 충분히 많은 사용자 가져오기
-  
+
   if (rankings.length === 0) {
     return [];
   }
