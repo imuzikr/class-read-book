@@ -42,3 +42,6 @@ firestore-debug.log
 
 # Windows
 nul
+
+# Claude Code
+.claude/
