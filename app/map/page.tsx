@@ -25,6 +25,7 @@ interface UserStatus {
   };
   progress: number; // 0-100 (전체 여정 진행률)
   currentLevelProgress: number; // 현재 레벨 내 진행률 (0-100)
+  lastReadingLogDate?: number; // 가장 최근 독서 기록 날짜 (timestamp)
 }
 
 export default function StatusBarPage() {
@@ -96,12 +97,13 @@ export default function StatusBarPage() {
             return null; // 관리자는 건너뛰기
           }
 
-          // 병렬로 뱃지와 레벨 정보 가져오기
-          const [userBadges, correctLevel] = await Promise.all([
+          // 병렬로 뱃지, 레벨 정보, 독서 기록 가져오기
+          const [userBadges, correctLevel, readingLogs] = await Promise.all([
             getUserBadges(userData.id),
             Promise.resolve(getLevelFromExp(userData.exp)),
+            getReadingLogs(userData.id),
           ]);
-          
+
           // 레벨이 다르면 자동으로 업데이트 (백그라운드, await 하지 않음)
           if (correctLevel !== userData.level) {
             updateUserData(userData.id, {
@@ -109,10 +111,19 @@ export default function StatusBarPage() {
             }).catch(err => console.error(`레벨 업데이트 실패:`, err));
             userData.level = correctLevel; // 로컬 데이터도 업데이트
           }
-          
+
+          // 가장 최근 독서 기록 날짜 찾기
+          let lastReadingLogDate: number | undefined = undefined;
+          if (readingLogs.length > 0) {
+            const sortedLogs = [...readingLogs].sort((a, b) =>
+              b.createdAt.toMillis() - a.createdAt.toMillis()
+            );
+            lastReadingLogDate = sortedLogs[0].createdAt.toMillis();
+          }
+
           // 현재 레벨 내 진행률 (0-100)
           let currentLevelProgress = getLevelProgress(userData.exp, userData.level);
-          
+
           // 전체 진행률 계산 (레벨 10을 최대로 가정)
           // 레벨 1 = 0%, 레벨 10 = 100%
           // 각 레벨은 11.11%씩 차지 (100% / 9레벨 간격 = 약 11.11% per level)
@@ -122,7 +133,7 @@ export default function StatusBarPage() {
           const levelProgressRatio = currentLevelProgress / 100; // 현재 레벨 내 진행률 비율 (0-1)
           const levelContribution = (1 / (maxLevel - 1)) * 100 * levelProgressRatio; // 현재 레벨에서 기여하는 진행률
           const totalProgress = Math.min(100, baseProgress + levelContribution);
-          
+
           // 레벨 진행률이 100%를 초과하지 않도록 제한
           currentLevelProgress = Math.min(100, currentLevelProgress);
 
@@ -140,6 +151,7 @@ export default function StatusBarPage() {
             } : undefined,
             progress: Math.min(100, totalProgress),
             currentLevelProgress,
+            lastReadingLogDate,
           };
         } catch (error) {
           console.error(`사용자 ${userData.id} 데이터 처리 실패:`, error);
@@ -157,7 +169,14 @@ export default function StatusBarPage() {
         if (b.exp !== a.exp) {
           return b.exp - a.exp;
         }
-        // 경험치가 같으면 이름 순으로 정렬
+        // 경험치가 같으면 최근 독서 기록 날짜로 정렬 (최신순)
+        if (a.lastReadingLogDate && b.lastReadingLogDate) {
+          return b.lastReadingLogDate - a.lastReadingLogDate;
+        }
+        // 한쪽만 독서 기록이 있으면 기록이 있는 쪽을 우선
+        if (a.lastReadingLogDate) return -1;
+        if (b.lastReadingLogDate) return 1;
+        // 둘 다 기록이 없으면 이름 순으로 정렬
         return a.userName.localeCompare(b.userName, 'ko');
       });
       setAllUsers(userStatuses);
@@ -291,6 +310,9 @@ export default function StatusBarPage() {
   const renderRaceTrack = () => {
     if (!userData || allUsers.length === 0) return null;
 
+    // 상위 10명만 선택 (이미 정렬되어 있음)
+    const top10Users = allUsers.slice(0, 10);
+
     // 레벨 마커 위치 계산 (5% ~ 95% 범위로 조정)
     const getLevelPosition = (exp: number, level: number, levelProgress: number) => {
       // 경험치가 0이면 레벨 0의 시작점(5%)에 고정
@@ -305,7 +327,7 @@ export default function StatusBarPage() {
     };
 
     // 각 사용자의 위치 계산
-    const usersWithPosition = allUsers.map((userStatus) => {
+    const usersWithPosition = top10Users.map((userStatus) => {
       const position = getLevelPosition(userStatus.exp, userStatus.level, userStatus.currentLevelProgress);
       return { ...userStatus, position };
     });
@@ -347,7 +369,14 @@ export default function StatusBarPage() {
     const sortedUsers = usersWithOffset;
 
     return (
-      <Card title="독서 여정 진행 상황">
+      <Card title={
+        <div className="flex items-center gap-2">
+          <span>독서 여정 진행 상황</span>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-white shadow-md">
+            TOP 10
+          </span>
+        </div>
+      }>
         {/* 레벨 마커 (카드 위쪽 바깥) */}
         <div className="relative mb-2">
           <div className="relative h-6 px-4">
