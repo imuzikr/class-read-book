@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getReviews, deleteReview } from '@/lib/firebase/firestore';
@@ -16,17 +16,7 @@ export default function ReviewsPage() {
   const [reviews, setReviews] = useState<(Review & { book?: Book })[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchReviews();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -50,7 +40,17 @@ export default function ReviewsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchReviews();
+    }
+  }, [user, authLoading, router, fetchReviews]);
 
   const handleDelete = async (reviewId: string) => {
     if (!confirm('정말 이 감상문을 삭제하시겠습니까?')) {

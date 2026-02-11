@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,7 @@ import { getLevelProgress, getExpToNextLevel } from '@/lib/utils/game';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import { BADGE_DEFINITIONS } from '@/lib/utils/badges';
 import Card from '@/components/ui/Card';
+import Image from 'next/image';
 import {
   LineChart,
   Line,
@@ -34,17 +35,7 @@ export default function StatisticsPage() {
   const [loading, setLoading] = useState(true);
   const [modalType, setModalType] = useState<'pages' | 'books' | 'streak' | null>(null);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchData();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -66,7 +57,17 @@ export default function StatisticsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchData();
+    }
+  }, [user, authLoading, router, fetchData]);
 
   // 월별 독서량 데이터 준비
   const getMonthlyData = () => {
@@ -494,15 +495,24 @@ export default function StatisticsPage() {
                             <div className="flex gap-3">
                               <div className="flex-shrink-0 w-16 h-20 bg-gray-200 rounded overflow-hidden">
                                 {book.coverImage ? (
-                                  <img
-                                    src={book.coverImage}
-                                    alt={book.title}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      target.src = getDefaultBookCover();
-                                    }}
-                                  />
+                                  <div className="relative w-full h-full">
+                                    <Image
+                                      src={book.coverImage}
+                                      alt={book.title}
+                                      fill
+                                      className="object-cover"
+                                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                      onError={(e) => {
+                                        // Image 컴포넌트에서는 onError 처리가 다릅니다.
+                                        // 여기서는 간단히 처리하기 위해 unoptimized를 사용하거나
+                                        // 별도의 상태 관리가 필요할 수 있습니다.
+                                        // 일단 onError는 제거하고 기본 이미지는 로드 실패 시 보여주는 방식으로 변경하는 것이 좋습니다.
+                                        // 하지만 여기서는 img 태그 로직을 유지하기 위해 unoptimized를 사용할 수 있습니다.
+                                        const target = e.target as HTMLImageElement;
+                                        target.src = getDefaultBookCover();
+                                      }}
+                                    />
+                                  </div>
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
                                     <span>📚</span>

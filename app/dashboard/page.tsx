@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -156,11 +157,16 @@ export default function DashboardPage() {
                       <div className="flex-shrink-0">
                         <div className="w-20 h-28 bg-gray-200 rounded overflow-hidden shadow-sm">
                           {book.coverImage ? (
-                            <img
+                            <Image
                               src={book.coverImage}
                               alt={`${book.title} 커버`}
+                              width={80}
+                              height={112}
+                              unoptimized
                               className="w-full h-full object-cover"
                               onError={(e) => {
+                                // Image 컴포넌트에서는 onError 처리가 다릅니다.
+                                // 일단 unoptimized를 사용하여 img 태그와 유사하게 동작하도록 합니다.
                                 const target = e.target as HTMLImageElement;
                                 target.src = getDefaultBookCover();
                               }}

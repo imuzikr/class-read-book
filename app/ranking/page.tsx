@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,17 +25,7 @@ export default function RankingPage() {
   const [selectedUserLogs, setSelectedUserLogs] = useState<ReadingLog[]>([]);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchRankings();
-    }
-  }, [user, authLoading, router, period]);
-
-  const fetchRankings = async () => {
+  const fetchRankings = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -81,7 +71,17 @@ export default function RankingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, period]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchRankings();
+    }
+  }, [user, authLoading, router, period, fetchRankings]);
 
   const getMedalEmoji = (rank: number) => {
     if (rank === 1) return '🥇';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getBook, createReview } from '@/lib/firebase/firestore';
@@ -25,22 +25,7 @@ function NewReviewContent() {
     rating: '5',
   });
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-
-      if (bookIdParam) {
-        fetchBook();
-      } else {
-        router.push('/books');
-      }
-    }
-  }, [user, authLoading, router, bookIdParam]);
-
-  const fetchBook = async () => {
+  const fetchBook = useCallback(async () => {
     if (!bookIdParam) return;
 
     try {
@@ -62,7 +47,22 @@ function NewReviewContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookIdParam, user, router]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+
+      if (bookIdParam) {
+        fetchBook();
+      } else {
+        router.push('/books');
+      }
+    }
+  }, [user, authLoading, router, bookIdParam, fetchBook]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

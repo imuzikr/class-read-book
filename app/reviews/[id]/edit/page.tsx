@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getReview, updateReview, getBook } from '@/lib/firebase/firestore';
@@ -25,17 +25,7 @@ export default function EditReviewPage() {
     rating: '5',
   });
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchReview();
-    }
-  }, [user, authLoading, router, reviewId]);
-
-  const fetchReview = async () => {
+  const fetchReview = useCallback(async () => {
     try {
       const reviewData = await getReview(reviewId);
       if (!reviewData) {
@@ -67,7 +57,17 @@ export default function EditReviewPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [reviewId, user, router]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchReview();
+    }
+  }, [user, authLoading, router, reviewId, fetchReview]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

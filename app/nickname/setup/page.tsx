@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, updateUserData } from '@/lib/firebase/firestore';
@@ -18,17 +18,7 @@ export default function NicknameSetupPage() {
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState<any>(null);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      checkUserNickname();
-    }
-  }, [user, authLoading, router]);
-
-  const checkUserNickname = async () => {
+  const checkUserNickname = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -42,7 +32,17 @@ export default function NicknameSetupPage() {
     } catch (error) {
       console.error('사용자 데이터 로드 실패:', error);
     }
-  };
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkUserNickname();
+    }
+  }, [user, authLoading, router, checkUserNickname]);
 
   const validateNickname = (value: string): string | null => {
     if (!value.trim()) {

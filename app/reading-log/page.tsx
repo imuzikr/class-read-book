@@ -37,25 +37,27 @@ function ReadingLogContent() {
     notes: '',
   });
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchData();
-    }
-  }, [user, authLoading, router]);
+  const fetchData = useCallback(async () => {
+    if (!user) return;
 
-  // URL의 bookId 파라미터가 변경되면 폼 데이터 업데이트
-  useEffect(() => {
-    if (bookIdParam) {
-      setFormData(prev => ({
-        ...prev,
-        bookId: bookIdParam,
-      }));
+    try {
+      // 모든 책 가져오기 (읽고 있는 책만이 아니라 모든 책)
+      const allBooks = await getBooks(user.uid);
+      // 읽고 있는 책과 완독한 책만 필터링 (일시정지된 책 제외)
+      const availableBooks = allBooks.filter(book => 
+        book.status === 'reading' || book.status === 'completed'
+      );
+      setBooks(availableBooks);
+      
+      const logsData = await getReadingLogs(user.uid, undefined, 30);
+      setLogs(logsData);
+    } catch (error) {
+      console.error('데이터 로드 실패:', error);
+      setError('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
-  }, [bookIdParam]);
+  }, [user]);
 
   // 실시간 검증 함수 (useEffect보다 먼저 선언)
   const validateField = useCallback((fieldName: 'startPage' | 'endPage' | 'notes', value: string, currentFormData = formData) => {
@@ -128,6 +130,26 @@ function ReadingLogContent() {
     });
   }, [books, formData]);
 
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchData();
+    }
+  }, [user, authLoading, router, fetchData]);
+
+  // URL의 bookId 파라미터가 변경되면 폼 데이터 업데이트
+  useEffect(() => {
+    if (bookIdParam) {
+      setFormData(prev => ({
+        ...prev,
+        bookId: bookIdParam,
+      }));
+    }
+  }, [bookIdParam]);
+
   // 책이 변경되거나 페이지 값이 변경되면 검증 다시 실행
   useEffect(() => {
     if (formData.bookId && formData.startPage) {
@@ -136,29 +158,8 @@ function ReadingLogContent() {
     if (formData.bookId && formData.endPage) {
       validateField('endPage', formData.endPage, formData);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.bookId, formData.startPage, formData.endPage, books, validateField]);
-
-  const fetchData = async () => {
-    if (!user) return;
-
-    try {
-      // 모든 책 가져오기 (읽고 있는 책만이 아니라 모든 책)
-      const allBooks = await getBooks(user.uid);
-      // 읽고 있는 책과 완독한 책만 필터링 (일시정지된 책 제외)
-      const availableBooks = allBooks.filter(book => 
-        book.status === 'reading' || book.status === 'completed'
-      );
-      setBooks(availableBooks);
-      
-      const logsData = await getReadingLogs(user.uid, undefined, 30);
-      setLogs(logsData);
-    } catch (error) {
-      console.error('데이터 로드 실패:', error);
-      setError('데이터를 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -585,3 +586,4 @@ export default function ReadingLogPage() {
     </Suspense>
   );
 }
+

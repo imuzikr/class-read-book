@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, getUserBadges, isAdmin, getBooks, getReadingLogs, getReviews } from '@/lib/firebase/firestore';
@@ -41,17 +41,7 @@ export default function StatusBarPage() {
   const [userReviews, setUserReviews] = useState<Review[]>([]);
   const [userBadges, setUserBadges] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      fetchStatusData();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchStatusData = async () => {
+  const fetchStatusData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -186,7 +176,17 @@ export default function StatusBarPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, router]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      fetchStatusData();
+    }
+  }, [user, authLoading, router, fetchStatusData]);
 
   const generateJourneyNarrative = () => {
     if (!userData || userBooks.length === 0) {

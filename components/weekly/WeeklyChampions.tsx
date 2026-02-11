@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { getWeeklyChampions, type WeeklyChampion } from '@/lib/utils/weeklyChampions';
 import { Trophy, Medal, Award, BookOpen } from 'lucide-react';
@@ -120,9 +121,12 @@ export default function WeeklyChampions() {
                 <div className="flex items-center gap-2 mb-2">
                   {/* 프로필 사진 또는 플레이스홀더 */}
                   {champion.userPhotoURL ? (
-                    <img
+                    <Image
                       src={champion.userPhotoURL}
                       alt={champion.userName}
+                      width={32}
+                      height={32}
+                      unoptimized
                       className="w-8 h-8 rounded-full border-2 border-white shadow-sm object-cover"
                     />
                   ) : (
@@ -153,9 +157,12 @@ export default function WeeklyChampions() {
                   {/* 최근 읽은 책 커버 */}
                   {champion.recentBookCover ? (
                     <div className="w-20 h-28 rounded overflow-hidden shadow-lg border-2 border-gray-300">
-                      <img
+                      <Image
                         src={champion.recentBookCover}
                         alt="최근 읽은 책"
+                        width={80}
+                        height={112}
+                        unoptimized
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
