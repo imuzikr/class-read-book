@@ -35,6 +35,17 @@ export default function StatisticsPage() {
   const [loading, setLoading] = useState(true);
   const [modalType, setModalType] = useState<'pages' | 'books' | 'streak' | null>(null);
 
+  // Firestore Timestamp를 Date로 안전하게 변환하는 헬퍼 함수
+  const toSafeDate = (dateValue: any): Date => {
+    if (dateValue && typeof dateValue === 'object' && 'toDate' in dateValue) {
+      return dateValue.toDate();
+    }
+    if (dateValue instanceof Date) {
+      return dateValue;
+    }
+    return new Date(dateValue);
+  };
+
   const fetchData = useCallback(async () => {
     if (!user) return;
 
@@ -74,7 +85,7 @@ export default function StatisticsPage() {
     const monthlyMap = new Map<string, number>();
 
     readingLogs.forEach(log => {
-      const date = log.date.toDate();
+      const date = toSafeDate(log.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       const current = monthlyMap.get(monthKey) || 0;
       monthlyMap.set(monthKey, current + log.pagesRead);
@@ -94,7 +105,7 @@ export default function StatisticsPage() {
   const getWeeklyData = () => {
     const weeklyMap = new Map<string, number>();
     const now = new Date();
-    
+
     // 최근 8주
     for (let i = 7; i >= 0; i--) {
       const weekStart = new Date(now);
@@ -104,7 +115,7 @@ export default function StatisticsPage() {
     }
 
     readingLogs.forEach(log => {
-      const date = log.date.toDate();
+      const date = toSafeDate(log.date);
       const weekKey = `${date.getFullYear()}-W${getWeekNumber(date)}`;
       if (weeklyMap.has(weekKey)) {
         const current = weeklyMap.get(weekKey) || 0;
@@ -142,18 +153,18 @@ export default function StatisticsPage() {
   // 평균 1일 독서량 계산
   const getAverageDailyPages = () => {
     if (readingLogs.length === 0) return 0;
-    
+
     // 독서한 날짜의 개수 계산
     const uniqueDates = new Set<string>();
     readingLogs.forEach(log => {
-      const date = log.date.toDate();
+      const date = toSafeDate(log.date);
       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       uniqueDates.add(dateKey);
     });
-    
+
     const totalDays = uniqueDates.size;
     if (totalDays === 0) return 0;
-    
+
     return Math.round(userData.totalPagesRead / totalDays);
   };
 
@@ -165,17 +176,17 @@ export default function StatisticsPage() {
   // 사용자 개인의 연속 독서 일수 기록 추출 (상위 3개)
   const getUserStreakHistory = () => {
     if (readingLogs.length === 0) return [];
-    
+
     // 독서 기록을 날짜별로 그룹화
     const dateMap = new Map<string, Date>();
     readingLogs.forEach(log => {
-      const date = log.date.toDate();
+      const date = toSafeDate(log.date);
       const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       if (!dateMap.has(dateKey)) {
         dateMap.set(dateKey, date);
       }
     });
-    
+
     // 날짜 배열로 변환하고 정렬 (오래된 순)
     const sortedDates = Array.from(dateMap.values())
       .map(d => {
@@ -184,25 +195,25 @@ export default function StatisticsPage() {
         return date;
       })
       .sort((a, b) => a.getTime() - b.getTime());
-    
+
     if (sortedDates.length === 0) return [];
-    
+
     // 모든 연속 독서 구간 찾기
     const streaks: Array<{ startDate: Date; endDate: Date; days: number }> = [];
     let currentStreakStart: Date | null = null;
     let currentStreakEnd: Date | null = null;
     let prevDate: Date | null = null;
-    
+
     for (let i = 0; i < sortedDates.length; i++) {
       const currentDate = sortedDates[i];
-      
+
       if (prevDate === null) {
         // 첫 번째 날짜
         currentStreakStart = currentDate;
         currentStreakEnd = currentDate;
       } else {
         const daysDiff = Math.floor((currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         if (daysDiff === 1) {
           // 연속된 날짜
           currentStreakEnd = currentDate;
@@ -221,10 +232,10 @@ export default function StatisticsPage() {
           currentStreakEnd = currentDate;
         }
       }
-      
+
       prevDate = currentDate;
     }
-    
+
     // 마지막 구간 저장
     if (currentStreakStart && currentStreakEnd) {
       const streakDays = Math.floor((currentStreakEnd.getTime() - currentStreakStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -234,7 +245,7 @@ export default function StatisticsPage() {
         days: streakDays,
       });
     }
-    
+
     // 일수 기준으로 정렬하고 상위 3개 반환
     return streaks
       .sort((a, b) => b.days - a.days)
@@ -270,7 +281,7 @@ export default function StatisticsPage() {
       {/* 주요 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <div 
+          <div
             className="text-center cursor-pointer hover:bg-gray-50 transition-all duration-300 rounded-lg p-2 relative hover:-translate-y-1 hover:shadow-md"
             onClick={() => setModalType('pages')}
           >
@@ -282,7 +293,7 @@ export default function StatisticsPage() {
           </div>
         </Card>
         <Card>
-          <div 
+          <div
             className="text-center cursor-pointer hover:bg-gray-50 transition-all duration-300 rounded-lg p-2 relative hover:-translate-y-1 hover:shadow-md"
             onClick={() => setModalType('books')}
           >
@@ -294,7 +305,7 @@ export default function StatisticsPage() {
           </div>
         </Card>
         <Card>
-          <div 
+          <div
             className="text-center cursor-pointer hover:bg-gray-50 transition-all duration-300 rounded-lg p-2 relative hover:-translate-y-1 hover:shadow-md"
             onClick={() => setModalType('streak')}
           >
@@ -342,21 +353,19 @@ export default function StatisticsPage() {
             return (
               <div
                 key={badge.id}
-                className={`relative flex flex-col items-center p-3 rounded-lg transition-all group ${
-                  hasBadge
+                className={`relative flex flex-col items-center p-3 rounded-lg transition-all group ${hasBadge
                     ? 'bg-primary-50 border-2 border-primary-300 opacity-100'
                     : 'bg-gray-50 border border-gray-200 opacity-30'
-                }`}
+                  }`}
               >
                 <div className={`text-3xl mb-1 ${hasBadge ? '' : 'grayscale'}`}>
                   {badge.icon}
                 </div>
-                <div className={`text-xs text-center font-medium ${
-                  hasBadge ? 'text-gray-900' : 'text-gray-400'
-                }`}>
+                <div className={`text-xs text-center font-medium ${hasBadge ? 'text-gray-900' : 'text-gray-400'
+                  }`}>
                   {badge.name}
                 </div>
-                
+
                 {/* 툴팁 */}
                 <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block z-10 w-48">
                   <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-lg">
@@ -431,11 +440,11 @@ export default function StatisticsPage() {
 
       {/* 상세 정보 모달 */}
       {modalType && typeof window !== 'undefined' && createPortal(
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
           onClick={() => setModalType(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
@@ -466,7 +475,7 @@ export default function StatisticsPage() {
                       </p>
                       <p className="text-sm text-gray-500 mt-2">
                         총 {userData.totalPagesRead.toLocaleString()}페이지를 {readingLogs.length > 0 ? new Set(readingLogs.map(log => {
-                          const date = log.date.toDate();
+                          const date = toSafeDate(log.date);
                           return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                         })).size : 0}일 동안 읽으셨습니다.
                       </p>
@@ -486,10 +495,10 @@ export default function StatisticsPage() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {getCompletedBooks().map((book) => {
-                        const progress = book.totalPages > 0 
-                          ? Math.round((book.currentPage / book.totalPages) * 100) 
+                        const progress = book.totalPages > 0
+                          ? Math.round((book.currentPage / book.totalPages) * 100)
                           : 0;
-                        
+
                         return (
                           <Card key={book.id} className="p-4">
                             <div className="flex gap-3">
@@ -538,7 +547,7 @@ export default function StatisticsPage() {
                                 </div>
                                 {book.finishDate && (
                                   <p className="text-xs text-gray-500">
-                                    완독일: {formatDateKorean(book.finishDate.toDate())}
+                                    완독일: {formatDateKorean(toSafeDate(book.finishDate))}
                                   </p>
                                 )}
                               </div>
@@ -562,7 +571,7 @@ export default function StatisticsPage() {
                       ) : (
                         getUserStreakHistory().map((streak, index) => {
                           const rank = index + 1;
-                          
+
                           return (
                             <div
                               key={`${streak.startDate.getTime()}-${streak.endDate.getTime()}`}
