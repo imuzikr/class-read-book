@@ -869,18 +869,18 @@ export default function BookDetailPage() {
 
                         {/* 수정 모드일 때 입력창 표시 */}
                         {editingLogId === log.id ? (
-                          <div className="mt-2">
-                            <p className="text-xs text-gray-500 mb-1">감상 내용 수정:</p>
-                            <div className="mt-1">
+                          <div className="mt-4 border-t pt-3">
+                            <p className="text-sm font-medium text-gray-700 mb-2">감상 내용 수정</p>
+                            <div className="bg-white p-3 border rounded-lg shadow-sm">
                               <textarea
                                 value={editingLogNotes}
                                 onChange={(e) => setEditingLogNotes(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                rows={4}
                                 placeholder="감상 내용을 입력해주세요..."
                                 autoFocus
                               />
-                              <div className="flex justify-end gap-2 mt-2">
+                              <div className="flex justify-end gap-2 mt-3">
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -901,30 +901,30 @@ export default function BookDetailPage() {
                           </div>
                         ) : (
                           /* 일반 모드 */
-                          <div className="flex flex-col">
+                          <div className="mt-2">
                             {log.notes && (
-                              <div className="mt-2 mb-2">
+                              <div className="mb-3">
                                 <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{log.notes}</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{log.notes}</p>
                               </div>
                             )}
                             
-                            {/* 수정/삭제 버튼 - 우측 하단 배치 */}
-                            <div className="flex justify-end gap-2 mt-1">
+                            {/* 수정/삭제 버튼 - 항상 보이도록 별도 row로 분리 */}
+                            <div className="flex justify-end items-center gap-3 mt-2 border-t pt-2 border-gray-100">
                               <button
                                 onClick={() => startEditingLog(log)}
-                                className="text-xs text-gray-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                                className="text-xs font-medium text-gray-500 hover:text-blue-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                               >
                                 <Edit2 className="w-3 h-3" />
-                                수정
+                                내용 수정
                               </button>
-                              <span className="text-gray-300 text-xs">|</span>
+                              <div className="w-px h-3 bg-gray-300"></div>
                               <button
                                 onClick={() => handleDeleteLog(log.id)}
-                                className="text-xs text-gray-500 hover:text-red-600 hover:underline flex items-center gap-1"
+                                className="text-xs font-medium text-gray-500 hover:text-red-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                               >
                                 <Trash2 className="w-3 h-3" />
-                                삭제
+                                기록 삭제
                               </button>
                             </div>
                           </div>
