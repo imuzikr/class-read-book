@@ -866,18 +866,18 @@ export default function BookDetailPage() {
                             )}
                           </div>
                           
-                          {/* 수정/삭제 버튼 항상 표시 (호버 제거) */}
+                          {/* 수정/삭제 버튼 항상 표시 */}
                           <div className="flex gap-1">
                             <button
                               onClick={() => startEditingLog(log)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
-                              title="감상 수정"
+                              className="p-1.5 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
+                              title={log.notes ? "감상 수정" : "감상 추가"}
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => handleDeleteLog(log.id)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                              className="p-1.5 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-100 transition-colors"
                               title="기록 삭제"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -885,43 +885,49 @@ export default function BookDetailPage() {
                           </div>
                         </div>
 
-                        {log.notes && (
+                        {/* 수정 모드일 때 입력창 표시 (notes 유무와 상관없이) */}
+                        {editingLogId === log.id ? (
                           <div className="mt-2">
-                            <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
-                            {editingLogId === log.id ? (
-                              <div className="mt-1">
-                                <textarea
-                                  value={editingLogNotes}
-                                  onChange={(e) => setEditingLogNotes(e.target.value)}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                                  rows={3}
-                                />
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={cancelEditingLog}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <X className="w-3 h-3" /> 취소
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => saveEditingLog(log.id)}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <Check className="w-3 h-3" /> 저장
-                                  </Button>
-                                </div>
+                            <p className="text-xs text-gray-500 mb-1">감상 내용 수정:</p>
+                            <div className="mt-1">
+                              <textarea
+                                value={editingLogNotes}
+                                onChange={(e) => setEditingLogNotes(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                rows={3}
+                                placeholder="감상 내용을 입력해주세요..."
+                                autoFocus
+                              />
+                              <div className="flex justify-end gap-2 mt-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEditingLog}
+                                  className="flex items-center gap-1"
+                                >
+                                  <X className="w-3 h-3" /> 취소
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveEditingLog(log.id)}
+                                  className="flex items-center gap-1"
+                                >
+                                  <Check className="w-3 h-3" /> 저장
+                                </Button>
                               </div>
-                            ) : (
+                            </div>
+                          </div>
+                        ) : (
+                          /* 일반 모드일 때 notes 표시 */
+                          log.notes && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
                               <div className="flex justify-between items-start gap-2 group">
                                 <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{log.notes}</p>
                               </div>
-                            )}
-                          </div>
+                            </div>
+                          )
                         )}
-                        {/* notes가 없을 때는 위에서 이미 버튼을 렌더링했으므로 여기서는 제거 */}
                       </div>
                     );
                   })}
