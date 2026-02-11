@@ -865,7 +865,26 @@ export default function BookDetailPage() {
                               </p>
                             )}
                           </div>
+                          
+                          {/* 수정/삭제 버튼 항상 표시 (호버 제거) */}
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => startEditingLog(log)}
+                              className="p-1.5 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                              title="감상 수정"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLog(log.id)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors"
+                              title="기록 삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
+
                         {log.notes && (
                           <div className="mt-2">
                             <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
@@ -898,44 +917,11 @@ export default function BookDetailPage() {
                             ) : (
                               <div className="flex justify-between items-start gap-2 group">
                                 <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{log.notes}</p>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={() => startEditingLog(log)}
-                                    className="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
-                                    title="감상 수정"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteLog(log.id)}
-                                    className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
-                                    title="기록 삭제"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
                               </div>
                             )}
                           </div>
                         )}
-                        {!log.notes && (
-                          <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => startEditingLog(log)}
-                              className="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
-                              title="감상 추가"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLog(log.id)}
-                              className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
-                              title="기록 삭제"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
+                        {/* notes가 없을 때는 위에서 이미 버튼을 렌더링했으므로 여기서는 제거 */}
                       </div>
                     );
                   })}
