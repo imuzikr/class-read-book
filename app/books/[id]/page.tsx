@@ -14,14 +14,31 @@ import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
+import Toast, { ToastType } from '@/components/ui/Toast';
 import Link from 'next/link';
-import { Trash2, Edit2, X, Check } from 'lucide-react';
+import { Trash2, Edit2, X, Check, Calendar, BookOpen } from 'lucide-react';
 
 export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
   const bookId = params.id as string;
   const { user, loading: authLoading } = useAuth();
+  
+  // Toast 상태
+  const [toast, setToast] = useState<{ visible: boolean; message: string; type: ToastType }>({
+    visible: false,
+    message: '',
+    type: 'success'
+  });
+
+  const showToast = (message: string, type: ToastType = 'success') => {
+    setToast({ visible: true, message, type });
+  };
+
+  const hideToast = () => {
+    setToast(prev => ({ ...prev, visible: false }));
+  };
+
   const [book, setBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -187,8 +204,9 @@ export default function BookDetailPage() {
             for (const badge of newBadges) {
               await awardBadge(user.uid, badge.id, badge.expReward);
             }
-            if (newBadges.length === 1) {
-              alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
+              if (newBadges.length === 1) {
+                showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
+              }
             }
           }
         }
@@ -196,8 +214,71 @@ export default function BookDetailPage() {
 
       await fetchBook();
       setEditing(false);
+      showToast('책 정보가 수정되었습니다.');
     } catch (err: any) {
       setError(err.message || '책 정보 수정에 실패했습니다.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('정말 이 책을 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      await deleteBook(bookId);
+      router.push('/books');
+    } catch (error) {
+      console.error('책 삭제 실패:', error);
+      showToast('책 삭제에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleDeleteLog = async (logId: string) => {
+    if (!confirm('정말 이 독서 기록을 삭제하시겠습니까?\n삭제된 경험치와 독서량은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteReadingLog(logId);
+      await fetchBook(); // 데이터 새로고침
+      showToast('독서 기록이 삭제되었습니다.');
+    } catch (err: any) {
+      console.error('로그 삭제 실패:', err);
+      showToast(err.message || '로그 삭제에 실패했습니다.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditingLog = (log: ReadingLog) => {
+    setEditingLogId(log.id);
+    setEditingLogNotes(log.notes || '');
+  };
+
+  const cancelEditingLog = () => {
+    setEditingLogId(null);
+    setEditingLogNotes('');
+  };
+
+  const saveEditingLog = async (logId: string) => {
+    if (!editingLogNotes.trim()) {
+      showToast('감상 내용을 입력해주세요.', 'error');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateReadingLog(logId, { notes: editingLogNotes });
+      await fetchBook();
+      cancelEditingLog();
+      showToast('독서 기록이 수정되었습니다.');
+    } catch (err: any) {
+      console.error('로그 수정 실패:', err);
+      showToast(err.message || '로그 수정에 실패했습니다.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -458,7 +539,7 @@ export default function BookDetailPage() {
         await updateUserData(user.uid, updateData);
         
         if (newLevel > userData.level) {
-          alert(`🎉 레벨업! 레벨 ${userData.level} → 레벨 ${newLevel}`);
+          showToast(`🎉 레벨업! 레벨 ${userData.level} → 레벨 ${newLevel}`);
         }
 
         const existingBadges = await getUserBadges(user.uid);
@@ -475,9 +556,9 @@ export default function BookDetailPage() {
               await awardBadge(user.uid, badge.id, badge.expReward);
             }
             if (newBadges.length === 1) {
-              alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
+              showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
             } else {
-              alert(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
+              showToast(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
             }
           }
         }
@@ -496,9 +577,9 @@ export default function BookDetailPage() {
 
       // 완독 여부 확인 (위에서 이미 정의된 isCompleted 변수 사용)
       if (isCompleted) {
-        alert('🎉 완독을 축하합니다! 🎉\n\n독서 기록이 저장되었습니다.');
+        showToast('🎉 완독을 축하합니다! 독서 기록이 저장되었습니다.');
       } else {
-        alert('독서 기록이 저장되었습니다!');
+        showToast('독서 기록이 저장되었습니다!');
       }
     } catch (err: any) {
       setReadingLogError(err.message || '독서 기록 저장에 실패했습니다.');
@@ -529,6 +610,12 @@ export default function BookDetailPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <Toast 
+        message={toast.message} 
+        isVisible={toast.visible} 
+        type={toast.type} 
+        onClose={hideToast} 
+      />
       <div className="flex justify-between items-center">
         <Link href="/books">
           <Button variant="ghost" size="sm">← 목록으로</Button>
@@ -840,8 +927,11 @@ export default function BookDetailPage() {
 
             {/* 최근 독서 기록 */}
             {logs.length > 0 ? (
-              <Card title="최근 독서 기록">
-                <div className="space-y-3">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-lg font-bold text-gray-900">최근 독서 기록</h2>
+                </div>
+                <div className="divide-y divide-gray-100">
                   {logs.map((log) => {
                     const logDate = log.date;
                     const pagesRead = log.endPage && log.startPage 
@@ -849,21 +939,119 @@ export default function BookDetailPage() {
                       : log.pagesRead || 0;
                     
                     return (
-                      <div key={log.id} className="p-3 bg-gray-50 rounded-lg">
-                        <div className="flex justify-between items-start mb-2">
+                      <div key={log.id} className="p-6 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center text-gray-600 bg-gray-100 px-3 py-1 rounded-full text-sm">
+                              <Calendar className="w-4 h-4 mr-2" />
+                              <span className="font-medium">{logDate.toLocaleDateString('ko-KR')}</span>
+                            </div>
+                            <div className="flex items-center text-gray-600 bg-gray-100 px-3 py-1 rounded-full text-sm">
+                              <BookOpen className="w-4 h-4 mr-2" />
+                              {log.startPage && log.endPage ? (
+                                <span>{log.startPage}p ~ {log.endPage}p ({pagesRead}p)</span>
+                              ) : (
+                                <span>{pagesRead}p 읽음</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 수정 모드일 때 입력창 표시 */}
+                        {editingLogId === log.id ? (
+                          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                            <div className="mb-4 grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">날짜 (수정 불가)</label>
+                                <input 
+                                  type="text" 
+                                  value={logDate.toLocaleDateString('ko-KR')} 
+                                  disabled 
+                                  className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-500 text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">페이지 (수정 불가)</label>
+                                <input 
+                                  type="text" 
+                                  value={`${log.startPage}p ~ ${log.endPage}p`} 
+                                  disabled 
+                                  className="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded text-gray-500 text-sm"
+                                />
+                              </div>
+                            </div>
+                            
+                            <label className="block text-sm font-medium text-gray-700 mb-2">오늘의 감상 수정</label>
+                            <textarea
+                              value={editingLogNotes}
+                              onChange={(e) => setEditingLogNotes(e.target.value)}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                              rows={4}
+                              placeholder="감상 내용을 입력해주세요..."
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-2 mt-3">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEditingLog}
+                                className="flex items-center gap-1 bg-white"
+                              >
+                                <X className="w-3 h-3" /> 취소
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => saveEditingLog(log.id)}
+                                className="flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3" /> 저장
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          /* 일반 모드 */
                           <div>
-                            <p className="font-medium text-sm">
-                              {logDate.toLocaleDateString('ko-KR')}
-                            </p>
-                            {log.startPage && log.endPage ? (
-                              <p className="text-xs text-gray-600">
-                                {log.startPage}페이지 ~ {log.endPage}페이지 ({pagesRead}페이지)
-                              </p>
-                            ) : (
-                              <p className="text-xs text-gray-600">
-                                {pagesRead}페이지 읽음
-                              </p>
+                            {log.notes && (
+                              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                                <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{log.notes}</p>
+                              </div>
                             )}
+                            
+                            {/* 수정/삭제 버튼 - Button 컴포넌트 사용 */}
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEditingLog(log)}
+                                className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                              >
+                                <Edit2 className="w-3 h-3 mr-1" />
+                                수정
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteLog(log.id)}
+                                className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-3 h-3 mr-1" />
+                                삭제
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <Card title="최근 독서 기록">
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">아직 독서 기록이 없습니다.</p>
+                </div>
+              </Card>
+            )}
                           </div>
                         </div>
 
