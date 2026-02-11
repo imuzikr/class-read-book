@@ -872,7 +872,12 @@ export default function BookDetailPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {logs.map((log) => {
-                    const logDate = log.date;
+                    // Firestore Timestamp를 Date로 안전하게 변환
+                    const logDate = log.date && typeof log.date === 'object' && 'toDate' in log.date
+                      ? (log.date as any).toDate()
+                      : log.date instanceof Date
+                      ? log.date
+                      : new Date(log.date);
                     const pagesRead = log.endPage && log.startPage 
                       ? log.endPage - log.startPage + 1 
                       : log.pagesRead || 0;
