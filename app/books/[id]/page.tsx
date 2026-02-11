@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
-import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, deleteReadingLog, updateReadingLog, type Book, type ReadingLog } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, deleteReadingLog, updateReadingLog } from '@/lib/firebase/firestore';
+import { type Book, type ReadingLog } from '@/types';
+
 import { calculateExpGain, getLevelFromExp } from '@/lib/utils/game';
 import { getStartOfDay } from '@/lib/utils/date';
 import { updateStreakOnNewLog } from '@/lib/utils/streak';
@@ -173,14 +174,14 @@ export default function BookDetailPage() {
         totalPages: totalPagesNum,
         currentPage: currentPageNum,
         status: formData.status,
-        updatedAt: Timestamp.now(),
+        updatedAt: new Date(),
       };
 
       // 완독 처리
       const isCompleting = currentPageNum >= totalPagesNum && formData.status !== 'completed';
       if (isCompleting) {
         updates.status = 'completed';
-        updates.finishDate = Timestamp.now();
+        updates.finishDate = new Date();
       } else if (currentPageNum < totalPagesNum && formData.status === 'completed') {
         updates.finishDate = undefined;
       }
@@ -204,9 +205,8 @@ export default function BookDetailPage() {
             for (const badge of newBadges) {
               await awardBadge(user.uid, badge.id, badge.expReward);
             }
-              if (newBadges.length === 1) {
-                showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-              }
+            if (newBadges.length === 1) {
+              showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
             }
           }
         }
@@ -277,68 +277,6 @@ export default function BookDetailPage() {
     } catch (err: any) {
       console.error('로그 수정 실패:', err);
       showToast(err.message || '로그 수정에 실패했습니다.', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm('정말 이 책을 삭제하시겠습니까?')) {
-      return;
-    }
-
-    try {
-      await deleteBook(bookId);
-      router.push('/books');
-    } catch (error) {
-      console.error('책 삭제 실패:', error);
-      alert('책 삭제에 실패했습니다.');
-    }
-  };
-
-  const handleDeleteLog = async (logId: string) => {
-    if (!confirm('정말 이 독서 기록을 삭제하시겠습니까?\n삭제된 경험치와 독서량은 되돌릴 수 없습니다.')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await deleteReadingLog(logId);
-      await fetchBook(); // 데이터 새로고침
-      alert('독서 기록이 삭제되었습니다.');
-    } catch (err: any) {
-      console.error('로그 삭제 실패:', err);
-      alert(err.message || '로그 삭제에 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startEditingLog = (log: ReadingLog) => {
-    setEditingLogId(log.id);
-    setEditingLogNotes(log.notes || '');
-  };
-
-  const cancelEditingLog = () => {
-    setEditingLogId(null);
-    setEditingLogNotes('');
-  };
-
-  const saveEditingLog = async (logId: string) => {
-    if (!editingLogNotes.trim()) {
-      alert('감상 내용을 입력해주세요.');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await updateReadingLog(logId, { notes: editingLogNotes });
-      await fetchBook();
-      cancelEditingLog();
-      alert('독서 기록이 수정되었습니다.');
-    } catch (err: any) {
-      console.error('로그 수정 실패:', err);
-      alert(err.message || '로그 수정에 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -485,7 +423,7 @@ export default function BookDetailPage() {
       await createReadingLog({
         userId: user.uid,
         bookId: book.id!,
-        date: Timestamp.fromDate(logDate),
+        date: logDate,
         startPage,
         endPage,
         pagesRead,
@@ -503,7 +441,7 @@ export default function BookDetailPage() {
       };
       
       if (isCompleted && !wasCompleted) {
-        bookUpdates.finishDate = Timestamp.now();
+        bookUpdates.finishDate = new Date();
       }
       
       await updateBook(book.id!, bookUpdates);
@@ -529,7 +467,7 @@ export default function BookDetailPage() {
           level: newLevel,
           currentStreak: streakData.currentStreak,
           longestStreak: streakData.longestStreak,
-          lastReadingDate: Timestamp.fromDate(streakData.lastReadingDate || logDate),
+          lastReadingDate: streakData.lastReadingDate || logDate,
         };
         
         if (isCompleted && !wasCompleted) {
@@ -1052,87 +990,9 @@ export default function BookDetailPage() {
                 </div>
               </Card>
             )}
-                          </div>
-                        </div>
-
-                        {/* 수정 모드일 때 입력창 표시 */}
-                        {editingLogId === log.id ? (
-                          <div className="mt-4 border-t pt-3">
-                            <p className="text-sm font-medium text-gray-700 mb-2">감상 내용 수정</p>
-                            <div className="bg-white p-3 border rounded-lg shadow-sm">
-                              <textarea
-                                value={editingLogNotes}
-                                onChange={(e) => setEditingLogNotes(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
-                                rows={4}
-                                placeholder="감상 내용을 입력해주세요..."
-                                autoFocus
-                              />
-                              <div className="flex justify-end gap-2 mt-3">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={cancelEditingLog}
-                                  className="flex items-center gap-1"
-                                >
-                                  <X className="w-3 h-3" /> 취소
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => saveEditingLog(log.id)}
-                                  className="flex items-center gap-1"
-                                >
-                                  <Check className="w-3 h-3" /> 저장
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          /* 일반 모드 */
-                          <div className="mt-2">
-                            {log.notes && (
-                              <div className="mb-3">
-                                <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{log.notes}</p>
-                              </div>
-                            )}
-                            
-                            {/* 수정/삭제 버튼 - 항상 보이도록 별도 row로 분리 */}
-                            <div className="flex justify-end items-center gap-3 mt-2 border-t pt-2 border-gray-100">
-                              <button
-                                onClick={() => startEditingLog(log)}
-                                className="text-xs font-medium text-gray-500 hover:text-blue-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-                              >
-                                <Edit2 className="w-3 h-3" />
-                                내용 수정
-                              </button>
-                              <div className="w-px h-3 bg-gray-300"></div>
-                              <button
-                                onClick={() => handleDeleteLog(log.id)}
-                                className="text-xs font-medium text-gray-500 hover:text-red-600 flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                기록 삭제
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            ) : (
-              <Card title="최근 독서 기록">
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">아직 독서 기록이 없습니다.</p>
-                </div>
-              </Card>
-            )}
           </div>
         </>
       )}
     </div>
   );
 }
-

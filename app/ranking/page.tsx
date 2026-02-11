@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { getRankings, getUserRanking, type RankingPeriod, type RankingItem } from '@/lib/utils/ranking';
 import { getUserData, getBooks, getReadingLogs } from '@/lib/firebase/firestore';
-import type { UserData, Book, ReadingLog } from '@/lib/firebase/firestore';
+import type { User, Book, ReadingLog } from '@/types';
 import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -20,7 +20,7 @@ export default function RankingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<{ userId: string; userName: string } | null>(null);
-  const [selectedUserData, setSelectedUserData] = useState<UserData | null>(null);
+  const [selectedUserData, setSelectedUserData] = useState<User | null>(null);
   const [selectedUserBooks, setSelectedUserBooks] = useState<Book[]>([]);
   const [selectedUserLogs, setSelectedUserLogs] = useState<ReadingLog[]>([]);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
@@ -379,7 +379,7 @@ export default function RankingPage() {
                                     {book?.title || '알 수 없음'}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {log.date.toDate().toLocaleDateString('ko-KR')}
+                                    {log.date.toLocaleDateString('ko-KR')}
                                   </p>
                                 </div>
                                 <span className="text-xs text-gray-600">

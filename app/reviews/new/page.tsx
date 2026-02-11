@@ -3,8 +3,9 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getBook, createReview, type Book } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getBook, createReview } from '@/lib/firebase/firestore';
+import { type Book } from '@/types';
+
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';

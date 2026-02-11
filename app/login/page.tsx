@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signIn, signInWithGoogle, getGoogleRedirectResult } from '@/lib/firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -50,8 +50,8 @@ export default function LoginPage() {
                 currentStreak: 0,
                 longestStreak: 0,
                 isAnonymous: false,
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
+                createdAt: new Date(),
+                updatedAt: new Date(),
               });
             }
           } catch (dbError: any) {
@@ -157,8 +157,8 @@ export default function LoginPage() {
             currentStreak: 0,
             longestStreak: 0,
             isAnonymous: false,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
         }
       } catch (dbError: any) {

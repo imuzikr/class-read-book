@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { createBook, checkDuplicateBook } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+
 import { searchBooks, fetchBookPageCount, type BookSearchResult } from '@/lib/utils/bookSearch';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -97,7 +97,7 @@ export default function NewBookPage() {
         author: formData.author.trim(),
         totalPages: totalPagesNum,
         currentPage: currentPageNum,
-        startDate: Timestamp.now(),
+        startDate: new Date(),
         status: currentPageNum >= totalPagesNum ? 'completed' : 'reading',
         coverImage: coverImage || undefined,
       });

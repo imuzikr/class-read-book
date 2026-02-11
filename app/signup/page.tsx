@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signUp, signInWithGoogle } from '@/lib/firebase/auth';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserData, createUserData } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -60,8 +60,8 @@ export default function SignupPage() {
         currentStreak: 0,
         longestStreak: 0,
         isAnonymous: false,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
       // 별명 설정 페이지로 이동
@@ -99,8 +99,8 @@ export default function SignupPage() {
             currentStreak: 0,
             longestStreak: 0,
             isAnonymous: false,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
           });
         } catch (dbError: any) {
           console.error('사용자 데이터 생성 실패:', dbError);

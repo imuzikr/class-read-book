@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserData, getBooks, type Book } from '@/lib/firebase/firestore';
+import { getUserData, getBooks } from '@/lib/firebase/firestore';
+import { type Book } from '@/types';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';

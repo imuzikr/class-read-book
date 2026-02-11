@@ -358,13 +358,14 @@ export const createReadingLog = async (
 };
 
 export const deleteReadingLog = async (logId: string): Promise<void> => {
-  if (!db) {
+if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
+  const firestore = db;
 
-  await runTransaction(db, async (transaction) => {
+  await runTransaction(firestore, async (transaction) => {
     // 1. 로그 데이터 가져오기
-    const logRef = doc(db, 'readingLogs', logId);
+    const logRef = doc(firestore, 'readingLogs', logId);
     const logSnap = await transaction.get(logRef);
     if (!logSnap.exists()) {
       throw new Error('독서 기록을 찾을 수 없습니다.');
@@ -372,8 +373,8 @@ export const deleteReadingLog = async (logId: string): Promise<void> => {
     const logData = convertReadingLog(logSnap);
 
     // 2. 사용자 및 책 데이터 가져오기
-    const userRef = doc(db, 'users', logData.userId);
-    const bookRef = doc(db, 'books', logData.bookId);
+    const userRef = doc(firestore, 'users', logData.userId);
+    const bookRef = doc(firestore, 'books', logData.bookId);
     const [userSnap, bookSnap] = await Promise.all([
       transaction.get(userRef),
       transaction.get(bookRef)
@@ -399,51 +400,6 @@ export const deleteReadingLog = async (logId: string): Promise<void> => {
     });
 
     // 4. 책 데이터 업데이트 (현재 페이지 롤백)
-    // 삭제하려는 기록이 책의 '현재 페이지'에 영향을 주었는지 확인해야 함
-    // 가장 간단한 방법: 이 책의 나머지 기록들 중 가장 큰 endPage를 찾아 설정
-    
-    // 트랜잭션 내에서 쿼리를 실행할 수 없으므로, 트랜잭션 전에 쿼리 결과를 가져와야 하는데
-    // 여기서는 로직 단순화를 위해 "현재 페이지가 삭제되는 로그의 endPage와 같다면 롤백" 정책 사용
-    
-    // 주의: Firestore 트랜잭션 내에서는 읽기 작업이 쓰기 작업보다 먼저 와야 함.
-    // 하지만 쿼리(getDocs)는 트랜잭션 객체로 지원되지 않으므로, 
-    // 엄밀한 일관성을 위해서는 모든 로그를 읽어야 하지만 비용이 큼.
-    // 대안: 클라이언트에서 계산된 값을 믿지 않고, 삭제 후 상태를 '추정'하여 업데이트.
-    
-    // 여기서는 삭제되는 로그가 '가장 최근' 기록이라고 가정하고 처리하거나,
-    // 단순히 책의 currentPage를 감소시키는 것은 위험함 (중간 기록 삭제 시 문제).
-    
-    // 전략:
-    // 삭제되는 로그의 endPage가 현재 책의 currentPage와 같다면,
-    // "직전 기록의 endPage"로 되돌려야 함.
-    // 이를 위해 해당 책의 모든 로그를 가져와서(쿼리) 메모리에서 계산하는 것이 안전함.
-    // *트랜잭션 외부*에서 로그들을 가져와야 함. 하지만 동시성 문제가 있을 수 있음.
-    // 하지만 개인의 독서 기록 수정 빈도는 낮으므로, 트랜잭션 외부에서 쿼리해도 허용 범위 내일 것임.
-    
-    // 하지만 여기서는 runTransaction 내부이므로 외부 쿼리를 못 함.
-    // 따라서 일단 User와 Book 업데이트만 하고, Log 삭제는 수행.
-    // Book update logic:
-    // If bookData.currentPage == logData.endPage, we assume this was the latest progress.
-    // We need to find the "next max" endPage.
-    // Since we can't query inside transaction efficiently for all logs, 
-    // we will rely on a separate lookup or just subtract pages (risky).
-    
-    // Let's TRY to fetch logs inside transaction? No, Firestore client SDK doesn't support query in transaction.
-    // So we update the log deletion FIRST, then recalculate Book state? No, transaction is atomic.
-    
-    // Revised Plan for Book Update:
-    // 1. Check if Book.currentPage == Log.endPage.
-    // 2. If so, we need to revert. Since we can't find "previous" easily without query,
-    //    we will set a flag or just handle it optimistically.
-    
-    // Actually, we can assume the UI will handle complex recalculations if needed,
-    // but the server logic should be robust.
-    
-    // Let's do this:
-    // If logData.endPage === bookData.currentPage, we revert to startPage - 1.
-    // This assumes logs are sequential. If they are not (gaps), this might be slightly off, but safe enough.
-    // Also update status if it was completed.
-    
     let newCurrentPage = bookData.currentPage;
     let newStatus = bookData.status;
     let newFinishDate = bookData.finishDate;
@@ -455,7 +411,7 @@ export const deleteReadingLog = async (logId: string): Promise<void> => {
         // 만약 완독 상태였다면, 다시 읽는 중으로 변경
         if (bookData.status === 'completed') {
             newStatus = 'reading';
-            newFinishDate = undefined; // Timestamp|undefined issue, use proper deletion if needed
+            newFinishDate = undefined; 
             // 완독 횟수 감소 (사용자 데이터)
             newTotalBooksRead = Math.max(0, userData.totalBooksRead - 1);
             
@@ -474,7 +430,7 @@ export const deleteReadingLog = async (logId: string): Promise<void> => {
     };
     
     if (newFinishDate === undefined && bookData.finishDate) {
-        bookUpdates.finishDate = null; // FieldValue.delete() would be better but null works for now or use specific update
+        bookUpdates.finishDate = null; 
     }
 
     transaction.update(bookRef, bookUpdates);
@@ -488,35 +444,299 @@ export const updateReadingLog = async (logId: string, updates: Partial<ReadingLo
     if (!db) {
         throw new Error('Firebase가 설정되지 않았습니다.');
     }
+    const firestore = db;
 
-    await runTransaction(db, async (transaction) => {
-        const logRef = doc(db, 'readingLogs', logId);
+    await runTransaction(firestore, async (transaction) => {
+        const logRef = doc(firestore, 'readingLogs', logId);
         const logSnap = await transaction.get(logRef);
         if (!logSnap.exists()) {
             throw new Error('독서 기록을 찾을 수 없습니다.');
         }
         const oldLog = convertReadingLog(logSnap);
         
-        // 변경사항이 notes 뿐이라면 간단히 업데이트
         if (updates.notes !== undefined && !updates.startPage && !updates.endPage) {
             transaction.update(logRef, { notes: updates.notes });
             return;
         }
 
-        // 페이지 변경이 포함된 경우 (복잡함)
-        // 1. 기존 Exp, PagesRead 롤백 (User)
-        // 2. 새로운 Exp, PagesRead 계산 및 적용 (User)
-        // 3. Book currentPage 조정 (만약 이 로그가 최신이었다면)
-        // 현재는 안전을 위해 'notes' 수정만 우선 허용하거나,
-        // UI에서 삭제 후 재생성을 유도하는 것이 나음.
-        // 하지만 요청사항은 "수정"이므로 notes 수정만 지원하고,
-        // 페이지 수정이 필요하면 에러를 띄우거나 별도 로직 구현.
-        
-        // 여기서는 notes 수정만 구현
         transaction.update(logRef, { 
             notes: updates.notes,
-            // 공개 여부 수정도 가능하도록
             ...(updates.isPublic !== undefined ? { isPublic: updates.isPublic } : {})
         });
     });
+};
+
+// --- Missing Functions Restored ---
+
+// 감상문 CRUD
+export const getReviews = async (userId: string): Promise<Review[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const q = query(
+    collection(db, 'reviews'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  );
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map((doc) => convertReview(doc));
+};
+
+export const getReview = async (reviewId: string): Promise<Review | null> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const docRef = doc(db, 'reviews', reviewId);
+  const docSnap = await getDoc(docRef);
+  
+  if (docSnap.exists()) {
+    return convertReview(docSnap);
+  }
+  return null;
+};
+
+export const createReview = async (
+  review: Omit<Review, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<string> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const now = Timestamp.now();
+  const reviewData: any = {
+    ...review,
+    createdAt: now,
+    updatedAt: now,
+  };
+  
+  const docRef = await addDoc(collection(db, 'reviews'), reviewData);
+  return docRef.id;
+};
+
+export const updateReview = async (reviewId: string, updates: Partial<Review>): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const docRef = doc(db, 'reviews', reviewId);
+  
+  const updatesToSave: any = { ...updates };
+  delete updatesToSave.id;
+  updatesToSave.updatedAt = Timestamp.now();
+  
+  await updateDoc(docRef, updatesToSave);
+};
+
+export const deleteReview = async (reviewId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const docRef = doc(db, 'reviews', reviewId);
+  await deleteDoc(docRef);
+};
+
+// 사용자 뱃지 CRUD
+export const getUserBadges = async (userId: string): Promise<string[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  const q = query(
+    collection(db, 'userBadges'),
+    where('userId', '==', userId)
+  );
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map((doc) => doc.data().badgeId);
+};
+
+export const hasBadge = async (userId: string, badgeId: string): Promise<boolean> => {
+  const badges = await getUserBadges(userId);
+  return badges.includes(badgeId);
+};
+
+// 사용자 데이터 완전 삭제 (탈퇴)
+export const deleteUserData = async (userId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+
+  try {
+    const booksQuery = query(collection(db, 'books'), where('userId', '==', userId));
+    const booksSnapshot = await getDocs(booksQuery);
+    await Promise.all(booksSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
+
+    const logsQuery = query(collection(db, 'readingLogs'), where('userId', '==', userId));
+    const logsSnapshot = await getDocs(logsQuery);
+    await Promise.all(logsSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
+
+    const reviewsQuery = query(collection(db, 'reviews'), where('userId', '==', userId));
+    const reviewsSnapshot = await getDocs(reviewsQuery);
+    await Promise.all(reviewsSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
+
+    const badgesQuery = query(collection(db, 'userBadges'), where('userId', '==', userId));
+    const badgesSnapshot = await getDocs(badgesQuery);
+    await Promise.all(badgesSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
+
+    const userDocRef = doc(db, 'users', userId);
+    await deleteDoc(userDocRef);
+  } catch (error) {
+    console.error('사용자 데이터 삭제 실패:', error);
+    throw new Error('사용자 데이터 삭제에 실패했습니다.');
+  }
+};
+
+// 관리자 확인 함수
+export const isAdmin = async (userId: string): Promise<boolean> => {
+  if (!db) return false;
+  try {
+    const adminDoc = doc(db, 'admins', userId);
+    const adminSnap = await getDoc(adminDoc);
+    return adminSnap.exists();
+  } catch (error) {
+    console.error('관리자 확인 실패:', error);
+    return false;
+  }
+};
+
+export const isAdminByEmail = async (email: string): Promise<boolean> => {
+  if (!db) return false;
+  try {
+    const q = query(
+      collection(db, 'admins'),
+      where('email', '==', email.toLowerCase().trim())
+    );
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('관리자 확인 실패:', error);
+    return false;
+  }
+};
+
+// 관리자용: 모든 책 가져오기
+export const getAllBooks = async (limitCount: number = 100): Promise<Book[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  
+  const q = query(
+    collection(db, 'books'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount * 3)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  const books = querySnapshot.docs.map((doc) => convertBook(doc));
+  
+  const uniqueBooks = new Map<string, Book>();
+  
+  for (const book of books) {
+    const key = `${book.userId}_${book.title.trim().toLowerCase()}_${book.author.trim().toLowerCase()}`;
+    const existing = uniqueBooks.get(key);
+    
+    if (!existing) {
+      uniqueBooks.set(key, book);
+    } else {
+      const bookTime = book.updatedAt.getTime();
+      const existingTime = existing.updatedAt.getTime();
+      
+      if (bookTime > existingTime) {
+        uniqueBooks.set(key, book);
+      }
+    }
+  }
+  
+  return Array.from(uniqueBooks.values())
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+    .slice(0, limitCount);
+};
+
+// 관리자용: 같은 제목과 저자의 책을 읽는 모든 사용자 찾기
+export const getBooksByTitleAndAuthor = async (
+  title: string,
+  author: string
+): Promise<Book[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  
+  const q = query(
+    collection(db, 'books'),
+    where('title', '==', title.trim()),
+    where('author', '==', author.trim())
+  );
+  
+  const querySnapshot = await getDocs(q);
+  const books = querySnapshot.docs.map((doc) => convertBook(doc));
+  
+  const uniqueBooks = new Map<string, Book>();
+  
+  for (const book of books) {
+    const key = book.userId;
+    const existing = uniqueBooks.get(key);
+    
+    if (!existing || (book.createdAt.getTime() > existing.createdAt.getTime())) {
+      uniqueBooks.set(key, book);
+    }
+  }
+  
+  return Array.from(uniqueBooks.values());
+};
+
+// 관리자용: 모든 사용자 가져오기
+export const getAllUsersAdmin = async (limitCount: number = 100): Promise<User[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  
+  const q = query(
+    collection(db, 'users'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount * 2)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  const allUsers = querySnapshot.docs.map((doc) => convertUser(doc));
+  
+  const filteredUsers: User[] = [];
+  for (const user of allUsers) {
+    const userIsAdmin = await isAdmin(user.id);
+    if (!userIsAdmin) {
+      filteredUsers.push(user);
+    }
+    if (filteredUsers.length >= limitCount) {
+      break;
+    }
+  }
+  
+  return filteredUsers;
+};
+
+export const getAllReadingLogs = async (limitCount: number = 100): Promise<ReadingLog[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  
+  const q = query(
+    collection(db, 'readingLogs'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => convertReadingLog(doc));
+};
+
+export const getAllReviews = async (limitCount: number = 100): Promise<Review[]> => {
+  if (!db) {
+    throw new Error('Firebase가 설정되지 않았습니다.');
+  }
+  
+  const q = query(
+    collection(db, 'reviews'),
+    orderBy('createdAt', 'desc'),
+    limit(limitCount)
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => convertReview(doc));
 };

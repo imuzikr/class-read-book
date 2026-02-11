@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserData, getUserBadges, isAdmin, getBooks, getReadingLogs, getReviews, type Book, type ReadingLog, type Review } from '@/lib/firebase/firestore';
+import { getUserData, getUserBadges, isAdmin, getBooks, getReadingLogs, getReviews } from '@/lib/firebase/firestore';
+import { type Book, type ReadingLog, type Review } from '@/types';
 import { getAllUsers } from '@/lib/firebase/users';
 import { getLevelProgress, getExpToNextLevel, getLevelFromExp, getExpForLevel } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
@@ -116,9 +117,9 @@ export default function StatusBarPage() {
           let lastReadingLogDate: number | undefined = undefined;
           if (readingLogs.length > 0) {
             const sortedLogs = [...readingLogs].sort((a, b) =>
-              b.createdAt.toMillis() - a.createdAt.toMillis()
+              b.createdAt.getTime() - a.createdAt.getTime()
             );
-            lastReadingLogDate = sortedLogs[0].createdAt.toMillis();
+            lastReadingLogDate = sortedLogs[0].createdAt.getTime();
           }
 
           // 현재 레벨 내 진행률 (0-100)
@@ -198,9 +199,9 @@ export default function StatusBarPage() {
 
     // 첫 번째 책 시작일
     const firstBook = [...userBooks].sort((a, b) =>
-      a.startDate.toMillis() - b.startDate.toMillis()
+      a.startDate.getTime() - b.startDate.getTime()
     )[0];
-    const journeyStartDate = firstBook.startDate.toDate();
+    const journeyStartDate = firstBook.startDate;
     const daysSinceStart = Math.floor((Date.now() - journeyStartDate.getTime()) / (1000 * 60 * 60 * 24));
 
     // 평균 일일 독서량 계산
@@ -214,7 +215,7 @@ export default function StatusBarPage() {
     // 최근 완독한 책
     const recentCompletedBook = completedBooks.length > 0
       ? [...completedBooks].sort((a, b) =>
-          (b.finishDate?.toMillis() || 0) - (a.finishDate?.toMillis() || 0)
+          (b.finishDate?.getTime() || 0) - (a.finishDate?.getTime() || 0)
         )[0]
       : null;
 
@@ -283,7 +284,7 @@ export default function StatusBarPage() {
     }
 
     if (recentCompletedBook && recentCompletedBook.finishDate) {
-      const daysAgo = Math.floor((Date.now() - recentCompletedBook.finishDate.toMillis()) / (1000 * 60 * 60 * 24));
+      const daysAgo = Math.floor((Date.now() - recentCompletedBook.finishDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysAgo === 0) {
         narrative += `오늘 "${recentCompletedBook.title}"를 완독하며 또 하나의 이정표를 세웠습니다. `;
       } else if (daysAgo === 1) {

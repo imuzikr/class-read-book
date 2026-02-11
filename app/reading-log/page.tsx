@@ -3,8 +3,9 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getBooks, createReadingLog, getReadingLogs, type Book, type ReadingLog } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getBooks, createReadingLog, getReadingLogs } from '@/lib/firebase/firestore';
+import { type Book, type ReadingLog } from '@/types';
+
 import { calculateExpGain, getLevelFromExp } from '@/lib/utils/game';
 import { formatDateKorean, getStartOfDay } from '@/lib/utils/date';
 import Button from '@/components/ui/Button';
@@ -220,7 +221,7 @@ function ReadingLogContent() {
       }
 
       const logDate = getStartOfDay(new Date(formData.date));
-      const logTimestamp = Timestamp.fromDate(logDate);
+      const logTimestamp = logDate;
 
       // 경험치 계산 (연속 독서 보너스는 서버에서 처리)
       const expGained = calculateExpGain(pagesRead, false, 0);
@@ -254,7 +255,7 @@ function ReadingLogContent() {
       
       // 완독한 경우에만 finishDate 설정
       if (isCompleted && !wasCompleted) {
-        bookUpdates.finishDate = Timestamp.now();
+        bookUpdates.finishDate = new Date();
       }
       
       await updateBook(formData.bookId, bookUpdates);
@@ -287,7 +288,7 @@ function ReadingLogContent() {
           level: newLevel,
           currentStreak: streakData.currentStreak,
           longestStreak: streakData.longestStreak,
-          lastReadingDate: Timestamp.fromDate(streakData.lastReadingDate || logDate),
+          lastReadingDate: streakData.lastReadingDate || logDate,
         };
         
         if (isCompleted && !wasCompleted) {

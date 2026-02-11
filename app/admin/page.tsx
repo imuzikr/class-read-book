@@ -12,11 +12,8 @@ import {
   getUserData,
   getReadingLogs,
   getBooks,
-  type UserData,
-  type Book,
-  type ReadingLog,
-  type Review,
 } from '@/lib/firebase/firestore';
+import { type User, type Book, type ReadingLog, type Review } from '@/types';
 import { getUserDisplayName } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -35,11 +32,11 @@ export default function AdminPage() {
     totalReviews: 0,
     totalPagesRead: 0,
   });
-  const [users, setUsers] = useState<Array<UserData & { id: string; actualBooksRead?: number }>>([]);
+  const [users, setUsers] = useState<Array<User & { id: string; actualBooksRead?: number }>>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [bookReaders, setBookReaders] = useState<Map<string, Array<{ userId: string; userName: string; progress: number }>>>(new Map());
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
-  const [selectedUser, setSelectedUser] = useState<(UserData & { id: string; actualBooksRead?: number }) | null>(null);
+  const [selectedUser, setSelectedUser] = useState<(User & { id: string; actualBooksRead?: number }) | null>(null);
   const [selectedUserBooks, setSelectedUserBooks] = useState<Book[]>([]);
   const [selectedUserLogs, setSelectedUserLogs] = useState<ReadingLog[]>([]);
   const [loadingUserData, setLoadingUserData] = useState(false);
@@ -99,7 +96,7 @@ export default function AdminPage() {
       })));
 
       // 사용자 데이터를 userId로 매핑 (빠른 조회를 위해)
-      const usersMap = new Map<string, UserData & { id: string }>();
+      const usersMap = new Map<string, User & { id: string }>();
       for (const user of usersData) {
         usersMap.set(user.id, user);
       }
@@ -305,7 +302,7 @@ export default function AdminPage() {
   };
 
   // 사용자 클릭 시 해당 사용자의 상세 정보 가져오기
-  const handleUserClick = async (userData: UserData & { id: string; actualBooksRead?: number }) => {
+  const handleUserClick = async (userData: User & { id: string; actualBooksRead?: number }) => {
     setSelectedUser(userData);
     setSelectedBook(null); // 책 선택 해제
     setLoadingUserData(true);
@@ -355,7 +352,7 @@ export default function AdminPage() {
   };
 
   // 사용자 강제 탈퇴
-  const handleDeleteUser = async (userData: UserData & { id: string }, e: React.MouseEvent) => {
+  const handleDeleteUser = async (userData: User & { id: string }, e: React.MouseEvent) => {
     e.stopPropagation(); // 사용자 클릭 이벤트 전파 방지
     
     const userName = getUserDisplayName(userData);
@@ -766,7 +763,7 @@ export default function AdminPage() {
                             <div className="flex justify-between items-start mb-2">
                               <div className="text-sm font-medium text-gray-900">
                                 {log.date
-                                  ? new Date(log.date.toMillis()).toLocaleDateString('ko-KR', {
+                                  ? new Date(log.date.getTime()).toLocaleDateString('ko-KR', {
                                       year: 'numeric',
                                       month: 'long',
                                       day: 'numeric',
@@ -832,7 +829,7 @@ export default function AdminPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                       <span>총 페이지: {selectedBook.totalPages}페이지</span>
                       {selectedBook.createdAt && (
-                        <span>등록일: {new Date(selectedBook.createdAt.toMillis()).toLocaleDateString('ko-KR')}</span>
+                        <span>등록일: {new Date(selectedBook.createdAt.getTime()).toLocaleDateString('ko-KR')}</span>
                       )}
                     </div>
                   </div>
@@ -922,7 +919,7 @@ export default function AdminPage() {
                                           <div className="flex justify-between items-start mb-2">
                                             <div className="text-sm font-medium text-gray-900">
                                               {log.date
-                                                ? new Date(log.date.toMillis()).toLocaleDateString('ko-KR', {
+                                                ? new Date(log.date.getTime()).toLocaleDateString('ko-KR', {
                                                     year: 'numeric',
                                                     month: 'long',
                                                     day: 'numeric',

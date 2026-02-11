@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getReviews, deleteReview, type Review } from '@/lib/firebase/firestore';
-import { getBook, type Book } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getReviews, deleteReview } from '@/lib/firebase/firestore';
+import { type Review, type Book } from '@/types';
+import { getBook } from '@/lib/firebase/firestore';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import Link from 'next/link';
@@ -66,8 +66,7 @@ export default function ReviewsPage() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    const date = timestamp.toDate();
+const formatDate = (date: Date) => {
     return date.toLocaleDateString('ko-KR');
   };
 

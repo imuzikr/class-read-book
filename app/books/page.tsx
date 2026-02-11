@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
-import { getBooks, deleteBook, type Book } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getBooks, deleteBook } from '@/lib/firebase/firestore';
+import { type Book } from '@/types';
+
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -46,7 +47,7 @@ export default function BooksPage() {
           // 이미 존재하는 경우, 더 최근에 생성된 것으로 교체
           const existing = uniqueBooksMap.get(key)!;
           if (book.createdAt && existing.createdAt && 
-              book.createdAt.toMillis() > existing.createdAt.toMillis()) {
+              book.createdAt.getTime() > existing.createdAt.getTime()) {
             uniqueBooksMap.set(key, book);
           }
         }
@@ -110,8 +111,7 @@ export default function BooksPage() {
     );
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    const date = timestamp.toDate();
+const formatDate = (date: Date) => {
     return date.toLocaleDateString('ko-KR');
   };
 

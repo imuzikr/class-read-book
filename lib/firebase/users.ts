@@ -1,12 +1,12 @@
 import { collection, query, getDocs, limit, orderBy, where } from 'firebase/firestore';
 import { db } from './config';
-import type { UserData } from './firestore';
+import { User } from '@/types';
 
 /**
  * 모든 사용자 데이터 가져오기 (공개 정보만)
  * 주의: 익명화 옵션이 켜진 사용자는 제외됩니다.
  */
-export const getAllUsers = async (limitCount: number = 100): Promise<Array<UserData & { id: string }>> => {
+export const getAllUsers = async (limitCount: number = 100): Promise<Array<User & { id: string }>> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
@@ -23,20 +23,20 @@ export const getAllUsers = async (limitCount: number = 100): Promise<Array<UserD
   
   return querySnapshot.docs
     .filter(doc => {
-      const data = doc.data() as UserData;
+      const data = doc.data() as User;
       // 익명화 옵션이 켜진 사용자는 제외 (선택사항)
       return !data.isAnonymous;
     })
     .map((doc) => ({
       id: doc.id,
       ...doc.data(),
-    })) as Array<UserData & { id: string }>;
+    })) as Array<User & { id: string }>;
 };
 
 /**
  * 특정 사용자들의 데이터 가져오기
  */
-export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
+export const getUsersByIds = async (userIds: string[]): Promise<User[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
@@ -48,7 +48,7 @@ export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
   }
 
   const { where, getDocs: getDocsQuery } = await import('firebase/firestore');
-  const allUsers: UserData[] = [];
+  const allUsers: User[] = [];
 
   for (const chunk of chunks) {
     const q = query(
@@ -59,7 +59,7 @@ export const getUsersByIds = async (userIds: string[]): Promise<UserData[]> => {
     allUsers.push(...(querySnapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-    })) as unknown as UserData[]));
+    })) as unknown as User[]));
   }
 
   return allUsers;

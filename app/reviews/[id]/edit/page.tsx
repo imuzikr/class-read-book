@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getReview, updateReview, getBook, type Review, type Book } from '@/lib/firebase/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { getReview, updateReview, getBook } from '@/lib/firebase/firestore';
+import { type Review, type Book } from '@/types';
+
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 
@@ -90,7 +91,7 @@ export default function EditReviewPage() {
       await updateReview(reviewId, {
         content: formData.content.trim(),
         rating,
-        updatedAt: Timestamp.now(),
+        updatedAt: new Date(),
       });
 
       router.push(`/books/${review.bookId}`);
