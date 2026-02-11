@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
-import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, type Book, type ReadingLog } from '@/lib/firebase/firestore';
+import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, deleteReadingLog, updateReadingLog, type Book, type ReadingLog } from '@/lib/firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { calculateExpGain, getLevelFromExp } from '@/lib/utils/game';
 import { getStartOfDay } from '@/lib/utils/date';
@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Link from 'next/link';
+import { Trash2, Edit2, X, Check } from 'lucide-react';
 
 export default function BookDetailPage() {
   const router = useRouter();
@@ -34,6 +35,10 @@ export default function BookDetailPage() {
     endPage?: string;
     notes?: string;
   }>({});
+  
+  // 로그 수정 상태
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editingLogNotes, setEditingLogNotes] = useState('');
 
   const [formData, setFormData] = useState({
     title: '',
@@ -207,6 +212,54 @@ export default function BookDetailPage() {
     } catch (error) {
       console.error('책 삭제 실패:', error);
       alert('책 삭제에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteLog = async (logId: string) => {
+    if (!confirm('정말 이 독서 기록을 삭제하시겠습니까?\n삭제된 경험치와 독서량은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await deleteReadingLog(logId);
+      await fetchBook(); // 데이터 새로고침
+      alert('독서 기록이 삭제되었습니다.');
+    } catch (err: any) {
+      console.error('로그 삭제 실패:', err);
+      alert(err.message || '로그 삭제에 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditingLog = (log: ReadingLog) => {
+    setEditingLogId(log.id);
+    setEditingLogNotes(log.notes || '');
+  };
+
+  const cancelEditingLog = () => {
+    setEditingLogId(null);
+    setEditingLogNotes('');
+  };
+
+  const saveEditingLog = async (logId: string) => {
+    if (!editingLogNotes.trim()) {
+      alert('감상 내용을 입력해주세요.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await updateReadingLog(logId, { notes: editingLogNotes });
+      await fetchBook();
+      cancelEditingLog();
+      alert('독서 기록이 수정되었습니다.');
+    } catch (err: any) {
+      console.error('로그 수정 실패:', err);
+      alert(err.message || '로그 수정에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -816,7 +869,71 @@ export default function BookDetailPage() {
                         {log.notes && (
                           <div className="mt-2">
                             <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
-                            <p className="text-sm text-gray-700">{log.notes}</p>
+                            {editingLogId === log.id ? (
+                              <div className="mt-1">
+                                <textarea
+                                  value={editingLogNotes}
+                                  onChange={(e) => setEditingLogNotes(e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                                  rows={3}
+                                />
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={cancelEditingLog}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <X className="w-3 h-3" /> 취소
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => saveEditingLog(log.id)}
+                                    className="flex items-center gap-1"
+                                  >
+                                    <Check className="w-3 h-3" /> 저장
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-start gap-2 group">
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{log.notes}</p>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => startEditingLog(log)}
+                                    className="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                    title="감상 수정"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLog(log.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                                    title="기록 삭제"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {!log.notes && (
+                          <div className="flex justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => startEditingLog(log)}
+                              className="p-1 text-gray-400 hover:text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                              title="감상 추가"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLog(log.id)}
+                              className="p-1 text-gray-400 hover:text-red-600 rounded hover:bg-red-50 transition-colors"
+                              title="기록 삭제"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         )}
                       </div>
