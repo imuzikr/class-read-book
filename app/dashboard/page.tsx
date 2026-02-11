@@ -8,13 +8,13 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Link from 'next/link';
 import { getLevelProgress, getExpToNextLevel } from '@/lib/utils/game';
-import type { UserData } from '@/lib/firebase/firestore';
+import type { User } from '@/types';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 
 export default function DashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [userData, setUserData] = useState<User | null>(null);
   const [readingBooks, setReadingBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -44,8 +44,8 @@ export default function DashboardPage() {
             const readingOnly = allBooks.filter(book => book.status === 'reading');
             // 최근 업데이트 순으로 정렬
             const sortedBooks = readingOnly.sort((a, b) => {
-              const aTime = a.updatedAt?.toMillis() || 0;
-              const bTime = b.updatedAt?.toMillis() || 0;
+              const aTime = a.updatedAt?.getTime() || 0;
+              const bTime = b.updatedAt?.getTime() || 0;
               return bTime - aTime;
             });
             setReadingBooks(sortedBooks);

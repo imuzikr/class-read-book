@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import type { UserData } from '@/lib/firebase/firestore';
+import type { User } from '@/types';
 import { getUserDisplayNameForRanking } from './userDisplay';
 
 /**
@@ -56,7 +56,7 @@ export const getPeriodStartDate = (period: RankingPeriod): Date | null => {
 export const calculatePeriodExp = async (
   userId: string,
   period: RankingPeriod,
-  userData: UserData
+  userData: User
 ): Promise<number> => {
   if (period === 'all-time') {
     return userData.exp;
@@ -72,14 +72,14 @@ export const calculatePeriodExp = async (
   // 해당 기간의 독서 기록 가져오기
   const readingLogs = await getReadingLogs(userId);
   const periodLogs = readingLogs.filter(log => {
-    const logDate = log.date.toDate();
+    const logDate = log.date;
     return logDate >= startDate;
   });
 
   // 해당 기간의 감상문 가져오기
   const reviews = await getReviews(userId);
   const periodReviews = reviews.filter(review => {
-    const reviewDate = review.createdAt.toDate();
+    const reviewDate = review.createdAt;
     return reviewDate >= startDate;
   });
 

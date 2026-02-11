@@ -17,76 +17,106 @@ import {
   QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from './config';
+import { User, Book, ReadingLog, Review } from '@/types';
 
-// 타입 정의
-export interface UserData {
-  email: string;
-  name: string;
-  displayName?: string;
-  photoURL?: string;
-  level: number;
-  exp: number;
-  totalPagesRead: number;
-  totalBooksRead: number;
-  currentStreak: number;
-  longestStreak: number;
-  lastReadingDate?: Timestamp;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-  isAnonymous: boolean;
-  // 별명 관련
-  nickname?: string; // 별명 (한글 또는 영문 조합, 2글자 이상)
-  useNickname?: boolean; // 별명 사용 여부 (true: 별명 사용, false: 실명 사용)
-  showTodayThought?: boolean; // 오늘의 감상 공개 여부 (true: 공개, false: 비공개)
-  // 캐릭터 정보
-  character?: {
-    animalType: string;
-    outfitColor: string;
-    outfitDesign: string;
+// Helper to convert Firestore Timestamp to Date
+const toDate = (timestamp: any): Date => {
+  if (timestamp instanceof Timestamp) {
+    return timestamp.toDate();
+  }
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+  return new Date(); // Fallback
+};
+
+// --- Converters ---
+
+const convertUser = (docSnap: QueryDocumentSnapshot | DocumentData, id?: string): User => {
+  const data = docSnap.data ? docSnap.data() : docSnap;
+  const docId = id || (docSnap.id as string);
+  
+  return {
+    id: docId,
+    email: data.email || '',
+    name: data.name || '',
+    displayName: data.displayName || data.name || '',
+    photoURL: data.photoURL || '',
+    level: data.level || 1,
+    exp: data.exp || 0,
+    totalPagesRead: data.totalPagesRead || 0,
+    totalBooksRead: data.totalBooksRead || 0,
+    currentStreak: data.currentStreak || 0,
+    longestStreak: data.longestStreak || 0,
+    lastReadingDate: data.lastReadingDate ? toDate(data.lastReadingDate) : undefined,
+    createdAt: data.createdAt ? toDate(data.createdAt) : new Date(),
+    updatedAt: data.updatedAt ? toDate(data.updatedAt) : new Date(),
+    isAnonymous: data.isAnonymous || false,
+    nickname: data.nickname,
+    useNickname: data.useNickname,
+    showTodayThought: data.showTodayThought,
+    character: data.character,
   };
-}
+};
 
-export interface Book {
-  id?: string;
-  userId: string;
-  title: string;
-  author: string;
-  totalPages: number;
-  currentPage: number;
-  startDate: Timestamp;
-  finishDate?: Timestamp;
-  status: 'reading' | 'completed' | 'paused';
-  coverImage?: string;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+const convertBook = (docSnap: QueryDocumentSnapshot | DocumentData, id?: string): Book => {
+  const data = docSnap.data ? docSnap.data() : docSnap;
+  const docId = id || (docSnap.id as string);
 
-export interface ReadingLog {
-  id?: string;
-  userId: string;
-  bookId: string;
-  date: Timestamp;
-  pagesRead: number; // 읽은 총 페이지 수 (계산된 값)
-  startPage?: number; // 시작 페이지 (선택사항, 호환성 유지)
-  endPage?: number; // 마지막 페이지 (선택사항, 호환성 유지)
-  notes?: string; // 오늘의 감상
-  isPublic?: boolean; // 공개 여부 (사용자 설정에 따라 결정)
-  expGained: number;
-  createdAt: Timestamp;
-}
+  return {
+    id: docId,
+    userId: data.userId,
+    title: data.title,
+    author: data.author,
+    totalPages: data.totalPages,
+    currentPage: data.currentPage,
+    startDate: data.startDate ? toDate(data.startDate) : new Date(),
+    finishDate: data.finishDate ? toDate(data.finishDate) : undefined,
+    status: data.status,
+    coverImage: data.coverImage,
+    createdAt: data.createdAt ? toDate(data.createdAt) : new Date(),
+    updatedAt: data.updatedAt ? toDate(data.updatedAt) : new Date(),
+  };
+};
 
-export interface Review {
-  id?: string;
-  userId: string;
-  bookId: string;
-  content: string;
-  rating: number;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+const convertReadingLog = (docSnap: QueryDocumentSnapshot | DocumentData, id?: string): ReadingLog => {
+  const data = docSnap.data ? docSnap.data() : docSnap;
+  const docId = id || (docSnap.id as string);
+
+  return {
+    id: docId,
+    userId: data.userId,
+    bookId: data.bookId,
+    date: data.date ? toDate(data.date) : new Date(),
+    pagesRead: data.pagesRead,
+    startPage: data.startPage,
+    endPage: data.endPage,
+    notes: data.notes,
+    isPublic: data.isPublic,
+    expGained: data.expGained,
+    createdAt: data.createdAt ? toDate(data.createdAt) : new Date(),
+  };
+};
+
+const convertReview = (docSnap: QueryDocumentSnapshot | DocumentData, id?: string): Review => {
+  const data = docSnap.data ? docSnap.data() : docSnap;
+  const docId = id || (docSnap.id as string);
+
+  return {
+    id: docId,
+    userId: data.userId,
+    bookId: data.bookId,
+    content: data.content,
+    rating: data.rating,
+    createdAt: data.createdAt ? toDate(data.createdAt) : new Date(),
+    updatedAt: data.updatedAt ? toDate(data.updatedAt) : new Date(),
+  };
+};
+
+// --- CRUD Operations ---
 
 // 사용자 데이터 CRUD
-export const getUserData = async (userId: string): Promise<UserData | null> => {
+export const getUserData = async (userId: string): Promise<User | null> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
@@ -94,45 +124,46 @@ export const getUserData = async (userId: string): Promise<UserData | null> => {
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
-    return docSnap.data() as UserData;
+    return convertUser(docSnap);
   }
   return null;
 };
 
-export const createUserData = async (userId: string, userData: Partial<UserData>): Promise<void> => {
+export const createUserData = async (userId: string, userData: Partial<User>): Promise<void> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
   const docRef = doc(db, 'users', userId);
   const now = Timestamp.now();
   
-  await setDoc(docRef, {
-    email: userData.email || '',
-    name: userData.name || '',
-    displayName: userData.displayName || userData.name || '',
-    photoURL: userData.photoURL || '',
-    level: userData.level || 1,
-    exp: userData.exp || 0,
-    totalPagesRead: userData.totalPagesRead || 0,
-    totalBooksRead: userData.totalBooksRead || 0,
-    currentStreak: userData.currentStreak || 0,
-    longestStreak: userData.longestStreak || 0,
-    isAnonymous: userData.isAnonymous || false,
-    character: userData.character || null,
+  // undefined 제거 및 필요한 필만 저장
+  const dataToSave: any = {
+    ...userData,
     createdAt: now,
     updatedAt: now,
-  });
+  };
+  
+  // id 필드는 문서 데이터에 저장하지 않음 (문서 ID로 사용됨)
+  delete dataToSave.id;
+
+  await setDoc(docRef, dataToSave);
 };
 
-export const updateUserData = async (userId: string, updates: Partial<UserData>): Promise<void> => {
+export const updateUserData = async (userId: string, updates: Partial<User>): Promise<void> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
   const docRef = doc(db, 'users', userId);
-  await updateDoc(docRef, {
-    ...updates,
-    updatedAt: Timestamp.now(),
-  });
+  
+  const updatesToSave: any = { ...updates };
+  delete updatesToSave.id; // ID는 업데이트하지 않음
+  updatesToSave.updatedAt = Timestamp.now();
+  
+  if (updatesToSave.lastReadingDate instanceof Date) {
+    updatesToSave.lastReadingDate = Timestamp.fromDate(updatesToSave.lastReadingDate);
+  }
+
+  await updateDoc(docRef, updatesToSave);
 };
 
 // 책 CRUD
@@ -155,10 +186,7 @@ export const getBooks = async (
   const q = query(collection(db, 'books'), ...constraints);
   const querySnapshot = await getDocs(q);
   
-  const books = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Book[];
+  const books = querySnapshot.docs.map((doc) => convertBook(doc));
   
   // 중복 제거: 같은 제목과 저자를 가진 책 중 가장 최근 것만 유지
   const uniqueBooks = new Map<string, Book>();
@@ -167,8 +195,8 @@ export const getBooks = async (
     const key = `${book.title.trim().toLowerCase()}_${book.author.trim().toLowerCase()}`;
     const existing = uniqueBooks.get(key);
     
-    if (!existing || (book.createdAt && existing.createdAt && 
-        book.createdAt.toMillis() > existing.createdAt.toMillis())) {
+    // createdAt은 Date 타입이므로 getTime() 사용
+    if (!existing || (book.createdAt.getTime() > existing.createdAt.getTime())) {
       uniqueBooks.set(key, book);
     }
   }
@@ -176,9 +204,6 @@ export const getBooks = async (
   return Array.from(uniqueBooks.values());
 };
 
-/**
- * 같은 제목과 저자의 책이 이미 존재하는지 확인
- */
 export const checkDuplicateBook = async (
   userId: string,
   title: string,
@@ -207,7 +232,7 @@ export const getBook = async (bookId: string): Promise<Book | null> => {
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Book;
+    return convertBook(docSnap);
   }
   return null;
 };
@@ -217,11 +242,18 @@ export const createBook = async (book: Omit<Book, 'id' | 'createdAt' | 'updatedA
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
   const now = Timestamp.now();
-  const docRef = await addDoc(collection(db, 'books'), {
+  
+  const bookData: any = {
     ...book,
     createdAt: now,
     updatedAt: now,
-  });
+  };
+
+  // Date 객체를 Timestamp로 변환
+  if (bookData.startDate instanceof Date) bookData.startDate = Timestamp.fromDate(bookData.startDate);
+  if (bookData.finishDate instanceof Date) bookData.finishDate = Timestamp.fromDate(bookData.finishDate);
+
+  const docRef = await addDoc(collection(db, 'books'), bookData);
   return docRef.id;
 };
 
@@ -232,14 +264,17 @@ export const updateBook = async (bookId: string, updates: Partial<Book>): Promis
   
   const docRef = doc(db, 'books', bookId);
   
-  // undefined 값을 제거한 업데이트 객체 생성
   const cleanUpdates: any = {
     updatedAt: Timestamp.now(),
   };
   
   for (const [key, value] of Object.entries(updates)) {
-    if (value !== undefined) {
-      cleanUpdates[key] = value;
+    if (value !== undefined && key !== 'id') {
+      if (value instanceof Date) {
+        cleanUpdates[key] = Timestamp.fromDate(value);
+      } else {
+        cleanUpdates[key] = value;
+      }
     }
   }
   
@@ -267,7 +302,6 @@ export const getReadingLogs = async (
   let querySnapshot;
   
   if (bookId) {
-    // bookId가 있을 때: bookId와 userId로 필터링하고, 클라이언트 측에서 정렬
     const q = query(
       collection(db, 'readingLogs'),
       where('bookId', '==', bookId),
@@ -275,7 +309,6 @@ export const getReadingLogs = async (
     );
     querySnapshot = await getDocs(q);
   } else {
-    // bookId가 없을 때: userId로 필터링하고 date로 정렬 (기존 인덱스 사용)
     const constraints: QueryConstraint[] = [
       where('userId', '==', userId),
       orderBy('date', 'desc')
@@ -289,20 +322,11 @@ export const getReadingLogs = async (
     querySnapshot = await getDocs(q);
   }
   
-  let logs = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as ReadingLog[];
+  let logs = querySnapshot.docs.map((doc) => convertReadingLog(doc));
   
-  // bookId가 있을 때 클라이언트 측에서 날짜순 정렬
   if (bookId) {
-    logs.sort((a, b) => {
-      const aTime = a.date.toMillis();
-      const bTime = b.date.toMillis();
-      return bTime - aTime; // 내림차순
-    });
+    logs.sort((a, b) => b.date.getTime() - a.date.getTime());
     
-    // limitCount가 있으면 제한
     if (limitCount) {
       logs = logs.slice(0, limitCount);
     }
@@ -317,10 +341,17 @@ export const createReadingLog = async (
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
-  const docRef = await addDoc(collection(db, 'readingLogs'), {
+  
+  const logData: any = {
     ...log,
     createdAt: Timestamp.now(),
-  });
+  };
+  
+  if (logData.date instanceof Date) {
+    logData.date = Timestamp.fromDate(logData.date);
+  }
+
+  const docRef = await addDoc(collection(db, 'readingLogs'), logData);
   return docRef.id;
 };
 
@@ -336,10 +367,7 @@ export const getReviews = async (userId: string): Promise<Review[]> => {
   );
   const querySnapshot = await getDocs(q);
   
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Review[];
+  return querySnapshot.docs.map((doc) => convertReview(doc));
 };
 
 export const getReview = async (reviewId: string): Promise<Review | null> => {
@@ -350,7 +378,7 @@ export const getReview = async (reviewId: string): Promise<Review | null> => {
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
-    return { id: docSnap.id, ...docSnap.data() } as Review;
+    return convertReview(docSnap);
   }
   return null;
 };
@@ -362,11 +390,13 @@ export const createReview = async (
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
   const now = Timestamp.now();
-  const docRef = await addDoc(collection(db, 'reviews'), {
+  const reviewData: any = {
     ...review,
     createdAt: now,
     updatedAt: now,
-  });
+  };
+  
+  const docRef = await addDoc(collection(db, 'reviews'), reviewData);
   return docRef.id;
 };
 
@@ -375,10 +405,12 @@ export const updateReview = async (reviewId: string, updates: Partial<Review>): 
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
   const docRef = doc(db, 'reviews', reviewId);
-  await updateDoc(docRef, {
-    ...updates,
-    updatedAt: Timestamp.now(),
-  });
+  
+  const updatesToSave: any = { ...updates };
+  delete updatesToSave.id;
+  updatesToSave.updatedAt = Timestamp.now();
+  
+  await updateDoc(docRef, updatesToSave);
 };
 
 export const deleteReview = async (reviewId: string): Promise<void> => {
@@ -389,7 +421,7 @@ export const deleteReview = async (reviewId: string): Promise<void> => {
   await deleteDoc(docRef);
 };
 
-// 사용자 뱃지 CRUD
+// 사용자 뱃지 CRUD (유지)
 export const getUserBadges = async (userId: string): Promise<string[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
@@ -415,43 +447,22 @@ export const deleteUserData = async (userId: string): Promise<void> => {
   }
 
   try {
-    // 1. 사용자의 모든 책 삭제
-    const booksQuery = query(
-      collection(db, 'books'),
-      where('userId', '==', userId)
-    );
+    const booksQuery = query(collection(db, 'books'), where('userId', '==', userId));
     const booksSnapshot = await getDocs(booksQuery);
-    const deleteBooksPromises = booksSnapshot.docs.map((doc) => deleteDoc(doc.ref));
-    await Promise.all(deleteBooksPromises);
+    await Promise.all(booksSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
 
-    // 2. 사용자의 모든 독서 기록 삭제
-    const logsQuery = query(
-      collection(db, 'readingLogs'),
-      where('userId', '==', userId)
-    );
+    const logsQuery = query(collection(db, 'readingLogs'), where('userId', '==', userId));
     const logsSnapshot = await getDocs(logsQuery);
-    const deleteLogsPromises = logsSnapshot.docs.map((doc) => deleteDoc(doc.ref));
-    await Promise.all(deleteLogsPromises);
+    await Promise.all(logsSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
 
-    // 3. 사용자의 모든 감상문 삭제
-    const reviewsQuery = query(
-      collection(db, 'reviews'),
-      where('userId', '==', userId)
-    );
+    const reviewsQuery = query(collection(db, 'reviews'), where('userId', '==', userId));
     const reviewsSnapshot = await getDocs(reviewsQuery);
-    const deleteReviewsPromises = reviewsSnapshot.docs.map((doc) => deleteDoc(doc.ref));
-    await Promise.all(deleteReviewsPromises);
+    await Promise.all(reviewsSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
 
-    // 4. 사용자의 모든 뱃지 삭제
-    const badgesQuery = query(
-      collection(db, 'userBadges'),
-      where('userId', '==', userId)
-    );
+    const badgesQuery = query(collection(db, 'userBadges'), where('userId', '==', userId));
     const badgesSnapshot = await getDocs(badgesQuery);
-    const deleteBadgesPromises = badgesSnapshot.docs.map((doc) => deleteDoc(doc.ref));
-    await Promise.all(deleteBadgesPromises);
+    await Promise.all(badgesSnapshot.docs.map((doc) => deleteDoc(doc.ref)));
 
-    // 5. 사용자 데이터 삭제
     const userDocRef = doc(db, 'users', userId);
     await deleteDoc(userDocRef);
   } catch (error) {
@@ -462,10 +473,7 @@ export const deleteUserData = async (userId: string): Promise<void> => {
 
 // 관리자 확인 함수
 export const isAdmin = async (userId: string): Promise<boolean> => {
-  if (!db) {
-    return false;
-  }
-  
+  if (!db) return false;
   try {
     const adminDoc = doc(db, 'admins', userId);
     const adminSnap = await getDoc(adminDoc);
@@ -476,12 +484,8 @@ export const isAdmin = async (userId: string): Promise<boolean> => {
   }
 };
 
-// 이메일로 관리자 확인 (로그인 시 사용)
 export const isAdminByEmail = async (email: string): Promise<boolean> => {
-  if (!db) {
-    return false;
-  }
-  
+  if (!db) return false;
   try {
     const q = query(
       collection(db, 'admins'),
@@ -495,7 +499,7 @@ export const isAdminByEmail = async (email: string): Promise<boolean> => {
   }
 };
 
-// 관리자용: 모든 책 가져오기 (중복 제거: 같은 사용자가 같은 책을 여러 번 등록한 경우만)
+// 관리자용: 모든 책 가져오기
 export const getAllBooks = async (limitCount: number = 100): Promise<Book[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
@@ -504,30 +508,23 @@ export const getAllBooks = async (limitCount: number = 100): Promise<Book[]> => 
   const q = query(
     collection(db, 'books'),
     orderBy('createdAt', 'desc'),
-    limit(limitCount * 3) // 충분히 많이 가져오기
+    limit(limitCount * 3)
   );
   
   const querySnapshot = await getDocs(q);
-  const books = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Book[];
+  const books = querySnapshot.docs.map((doc) => convertBook(doc));
   
-  // 중복 제거: 같은 사용자가 같은 제목과 저자를 가진 책 중 가장 최근 것만 유지
-  // 다른 사용자가 같은 책을 읽는 경우는 모두 유지
   const uniqueBooks = new Map<string, Book>();
   
   for (const book of books) {
-    // 사용자별로 중복 제거 (같은 사용자가 같은 책을 여러 번 등록한 경우)
     const key = `${book.userId}_${book.title.trim().toLowerCase()}_${book.author.trim().toLowerCase()}`;
     const existing = uniqueBooks.get(key);
     
     if (!existing) {
       uniqueBooks.set(key, book);
     } else {
-      // 기존 책과 비교: updatedAt 또는 createdAt 중 더 최근 것을 선택
-      const bookTime = book.updatedAt?.toMillis() || book.createdAt?.toMillis() || 0;
-      const existingTime = existing.updatedAt?.toMillis() || existing.createdAt?.toMillis() || 0;
+      const bookTime = book.updatedAt.getTime();
+      const existingTime = existing.updatedAt.getTime();
       
       if (bookTime > existingTime) {
         uniqueBooks.set(key, book);
@@ -535,13 +532,8 @@ export const getAllBooks = async (limitCount: number = 100): Promise<Book[]> => 
     }
   }
   
-  // 최신순으로 정렬하고 limitCount만큼만 반환 (updatedAt 우선, 없으면 createdAt 사용)
   return Array.from(uniqueBooks.values())
-    .sort((a, b) => {
-      const aTime = a.updatedAt?.toMillis() || a.createdAt?.toMillis() || 0;
-      const bTime = b.updatedAt?.toMillis() || b.createdAt?.toMillis() || 0;
-      return bTime - aTime;
-    })
+    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
     .slice(0, limitCount);
 };
 
@@ -561,20 +553,15 @@ export const getBooksByTitleAndAuthor = async (
   );
   
   const querySnapshot = await getDocs(q);
-  const books = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Book[];
+  const books = querySnapshot.docs.map((doc) => convertBook(doc));
   
-  // 같은 사용자가 여러 번 등록한 경우 가장 최근 것만 유지
   const uniqueBooks = new Map<string, Book>();
   
   for (const book of books) {
     const key = book.userId;
     const existing = uniqueBooks.get(key);
     
-    if (!existing || (book.createdAt && existing.createdAt && 
-        book.createdAt.toMillis() > existing.createdAt.toMillis())) {
+    if (!existing || (book.createdAt.getTime() > existing.createdAt.getTime())) {
       uniqueBooks.set(key, book);
     }
   }
@@ -582,8 +569,8 @@ export const getBooksByTitleAndAuthor = async (
   return Array.from(uniqueBooks.values());
 };
 
-// 관리자용: 모든 사용자 가져오기 (관리자 제외)
-export const getAllUsersAdmin = async (limitCount: number = 100): Promise<Array<UserData & { id: string }>> => {
+// 관리자용: 모든 사용자 가져오기
+export const getAllUsersAdmin = async (limitCount: number = 100): Promise<User[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
   }
@@ -591,17 +578,13 @@ export const getAllUsersAdmin = async (limitCount: number = 100): Promise<Array<
   const q = query(
     collection(db, 'users'),
     orderBy('createdAt', 'desc'),
-    limit(limitCount * 2) // 관리자 필터링을 위해 더 많이 가져오기
+    limit(limitCount * 2)
   );
   
   const querySnapshot = await getDocs(q);
-  const allUsers = querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Array<UserData & { id: string }>;
+  const allUsers = querySnapshot.docs.map((doc) => convertUser(doc));
   
-  // 관리자 계정 제외
-  const filteredUsers: Array<UserData & { id: string }> = [];
+  const filteredUsers: User[] = [];
   for (const user of allUsers) {
     const userIsAdmin = await isAdmin(user.id);
     if (!userIsAdmin) {
@@ -615,7 +598,6 @@ export const getAllUsersAdmin = async (limitCount: number = 100): Promise<Array<
   return filteredUsers;
 };
 
-// 관리자용: 모든 독서 기록 가져오기
 export const getAllReadingLogs = async (limitCount: number = 100): Promise<ReadingLog[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
@@ -628,13 +610,9 @@ export const getAllReadingLogs = async (limitCount: number = 100): Promise<Readi
   );
   
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as ReadingLog[];
+  return querySnapshot.docs.map((doc) => convertReadingLog(doc));
 };
 
-// 관리자용: 모든 리뷰 가져오기
 export const getAllReviews = async (limitCount: number = 100): Promise<Review[]> => {
   if (!db) {
     throw new Error('Firebase가 설정되지 않았습니다.');
@@ -647,9 +625,5 @@ export const getAllReviews = async (limitCount: number = 100): Promise<Review[]>
   );
   
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Review[];
+  return querySnapshot.docs.map((doc) => convertReview(doc));
 };
-

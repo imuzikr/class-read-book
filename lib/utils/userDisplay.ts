@@ -1,10 +1,10 @@
-import type { UserData } from '@/lib/firebase/firestore';
+import type { User } from '@/types';
 
 /**
  * 사용자의 표시 이름을 반환합니다.
  * useNickname이 true이면 별명을, false이면 실명을 반환합니다.
  */
-export const getUserDisplayName = (userData: UserData | null | undefined): string => {
+export const getUserDisplayName = (userData: User | null | undefined): string => {
   if (!userData) return '사용자';
   
   if (userData.useNickname && userData.nickname) {

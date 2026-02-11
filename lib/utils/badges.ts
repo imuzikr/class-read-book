@@ -1,4 +1,4 @@
-import type { UserData, Book, ReadingLog, Review } from '@/lib/firebase/firestore';
+import type { User, Book, ReadingLog, Review } from '@/types';
 import { Timestamp } from 'firebase/firestore';
 
 /**
@@ -118,7 +118,7 @@ export const BADGE_DEFINITIONS: BadgeDefinition[] = [
  */
 export const checkBadgeCondition = (
   badge: BadgeDefinition,
-  userData: UserData,
+  userData: User,
   books: Book[],
   reviews: Review[],
   readingLogs: ReadingLog[]
@@ -148,7 +148,7 @@ export const checkBadgeCondition = (
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
       
       const logsThisMonth = readingLogs.filter(log => {
-        const logDate = log.date.toDate();
+        const logDate = log.date;
         return logDate >= startOfMonth && logDate <= endOfMonth;
       });
       
@@ -164,7 +164,7 @@ export const checkBadgeCondition = (
  * 사용자가 획득 가능한 새로운 뱃지 찾기
  */
 export const findNewBadges = async (
-  userData: UserData,
+  userData: User,
   userId: string,
   existingBadgeIds: string[]
 ): Promise<BadgeDefinition[]> => {

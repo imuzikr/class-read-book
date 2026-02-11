@@ -269,7 +269,7 @@ function ReadingLogContent() {
         const streakData = updateStreakOnNewLog(
           logDate,
           userData.currentStreak,
-          userData.lastReadingDate?.toDate()
+          userData.lastReadingDate
         );
 
         // 연속 독서 보너스 경험치 계산
@@ -530,7 +530,7 @@ function ReadingLogContent() {
             <div className="space-y-3 max-h-[500px] overflow-y-auto">
               {logs.map((log) => {
                 const book = books.find(b => b.id === log.bookId);
-                const logDate = log.date.toDate();
+                const logDate = log.date;
                 
                 return (
                   <div

@@ -3,6 +3,7 @@ import { getUserData } from '@/lib/firebase/firestore';
 import { getReadingLogs } from '@/lib/firebase/firestore';
 import { getPeriodStartDate } from './ranking';
 import { getUserDisplayNameForRanking } from './userDisplay';
+import type { User } from '@/types';
 
 /**
  * 주간 독서 대장 정보
@@ -33,7 +34,7 @@ const calculateWeeklyStreak = async (userId: string): Promise<number> => {
 
   const readingLogs = await getReadingLogs(userId);
   const weekLogs = readingLogs.filter(log => {
-    const logDate = log.date.toDate();
+    const logDate = log.date;
     return logDate >= weekStart;
   });
 
@@ -42,7 +43,7 @@ const calculateWeeklyStreak = async (userId: string): Promise<number> => {
   // 날짜별로 그룹화 (중복 제거)
   const datesSet = new Set<string>();
   weekLogs.forEach(log => {
-    const date = log.date.toDate();
+    const date = log.date;
     date.setHours(0, 0, 0, 0);
     const dateKey = date.getTime().toString();
     datesSet.add(dateKey);
@@ -103,7 +104,7 @@ const calculateWeeklyPages = async (userId: string): Promise<number> => {
 
   const readingLogs = await getReadingLogs(userId);
   const weekLogs = readingLogs.filter(log => {
-    const logDate = log.date.toDate();
+    const logDate = log.date;
     return logDate >= weekStart;
   });
 
@@ -146,7 +147,7 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
         const { getReadingLogs, getReviews } = await import('@/lib/firebase/firestore');
         const readingLogs = await getReadingLogs(ranking.userId);
         const weekLogs = readingLogs.filter(log => {
-          const logDate = log.date.toDate();
+          const logDate = log.date;
           return logDate >= weekStart;
         });
         
@@ -160,7 +161,7 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
         if (weekLogs.length > 0) {
           const reviews = await getReviews(ranking.userId);
           const weekReviews = reviews.filter(review => {
-            const reviewDate = review.createdAt.toDate();
+            const reviewDate = review.createdAt;
             // 감상문이 주간 기간 내에 작성되었고, 주간에 읽은 책에 대한 감상문인지 확인
             if (reviewDate >= weekStart) {
               // 주간에 읽은 책 ID 목록
@@ -195,14 +196,14 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
         
         const recentBook = readingBooks.length > 0
           ? readingBooks.sort((a, b) => {
-              const aTime = a.updatedAt?.toMillis() || 0;
-              const bTime = b.updatedAt?.toMillis() || 0;
+              const aTime = a.updatedAt?.getTime() || 0;
+              const bTime = b.updatedAt?.getTime() || 0;
               return bTime - aTime;
             })[0]
           : completedBooks.length > 0
           ? completedBooks.sort((a, b) => {
-              const aTime = a.updatedAt?.toMillis() || 0;
-              const bTime = b.updatedAt?.toMillis() || 0;
+              const aTime = a.updatedAt?.getTime() || 0;
+              const bTime = b.updatedAt?.getTime() || 0;
               return bTime - aTime;
             })[0]
           : null;

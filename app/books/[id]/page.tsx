@@ -379,7 +379,7 @@ export default function BookDetailPage() {
         const streakData = updateStreakOnNewLog(
           logDate,
           userData.currentStreak,
-          userData.lastReadingDate?.toDate()
+          userData.lastReadingDate
         );
 
         const streakBonus = streakData.currentStreak > 0 ? streakData.currentStreak * 10 : 0;
@@ -454,8 +454,7 @@ export default function BookDetailPage() {
     }
   };
 
-  const formatDate = (timestamp: Timestamp) => {
-    const date = timestamp.toDate();
+  const formatDate = (date: Date) => {
     return date.toLocaleDateString('ko-KR');
   };
 
@@ -791,7 +790,7 @@ export default function BookDetailPage() {
               <Card title="최근 독서 기록">
                 <div className="space-y-3">
                   {logs.map((log) => {
-                    const logDate = log.date.toDate();
+                    const logDate = log.date;
                     const pagesRead = log.endPage && log.startPage 
                       ? log.endPage - log.startPage + 1 
                       : log.pagesRead || 0;

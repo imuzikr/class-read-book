@@ -84,15 +84,16 @@ export async function GET(request: NextRequest) {
       }
 
       return NextResponse.json(data, { status: 200 });
-    } catch (fetchError: any) {
+    } catch (fetchError: unknown) {
       // 네이버 API 호출 실패 (네트워크 오류, 타임아웃 등)
-      console.warn('네이버 API 호출 실패:', fetchError?.message || String(fetchError));
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      console.warn('네이버 API 호출 실패:', errorMessage);
       return returnEmptyResult();
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 예상치 못한 모든 에러 처리
-    const errorMessage = error?.message || String(error);
-    const errorStack = error?.stack || 'No stack trace';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace';
     
     console.error('책 검색 API 예상치 못한 오류:', errorMessage);
     console.error('에러 스택:', errorStack);
