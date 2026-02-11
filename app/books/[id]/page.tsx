@@ -594,13 +594,14 @@ export default function BookDetailPage() {
               required
             />
             <Input
-              label="현재 읽은 페이지"
+              label="현재 읽은 페이지 (수정 불가 - 독서 기록을 이용해주세요)"
               type="number"
               value={formData.currentPage}
-              onChange={(e) => setFormData({ ...formData, currentPage: e.target.value })}
+              onChange={() => {}} // 읽기 전용이므로 핸들러 비활성화
               min="0"
               max={formData.totalPages}
               required
+              disabled
             />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
