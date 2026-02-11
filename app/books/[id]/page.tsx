@@ -865,27 +865,9 @@ export default function BookDetailPage() {
                               </p>
                             )}
                           </div>
-                          
-                          {/* 수정/삭제 버튼 항상 표시 */}
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => startEditingLog(log)}
-                              className="p-1.5 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors"
-                              title={log.notes ? "감상 수정" : "감상 추가"}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteLog(log.id)}
-                              className="p-1.5 text-gray-500 hover:text-red-600 rounded-full hover:bg-red-100 transition-colors"
-                              title="기록 삭제"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
                         </div>
 
-                        {/* 수정 모드일 때 입력창 표시 (notes 유무와 상관없이) */}
+                        {/* 수정 모드일 때 입력창 표시 */}
                         {editingLogId === log.id ? (
                           <div className="mt-2">
                             <p className="text-xs text-gray-500 mb-1">감상 내용 수정:</p>
@@ -918,15 +900,34 @@ export default function BookDetailPage() {
                             </div>
                           </div>
                         ) : (
-                          /* 일반 모드일 때 notes 표시 */
-                          log.notes && (
-                            <div className="mt-2">
-                              <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
-                              <div className="flex justify-between items-start gap-2 group">
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap flex-1">{log.notes}</p>
+                          /* 일반 모드 */
+                          <div className="flex flex-col">
+                            {log.notes && (
+                              <div className="mt-2 mb-2">
+                                <p className="text-xs text-gray-500 mb-1">오늘의 감상:</p>
+                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{log.notes}</p>
                               </div>
+                            )}
+                            
+                            {/* 수정/삭제 버튼 - 우측 하단 배치 */}
+                            <div className="flex justify-end gap-2 mt-1">
+                              <button
+                                onClick={() => startEditingLog(log)}
+                                className="text-xs text-gray-500 hover:text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                수정
+                              </button>
+                              <span className="text-gray-300 text-xs">|</span>
+                              <button
+                                onClick={() => handleDeleteLog(log.id)}
+                                className="text-xs text-gray-500 hover:text-red-600 hover:underline flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                삭제
+                              </button>
                             </div>
-                          )
+                          </div>
                         )}
                       </div>
                     );
