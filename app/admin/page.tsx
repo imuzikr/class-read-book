@@ -4,22 +4,12 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
-import {
-  getAllUsersAdmin,
-  getAllBooks,
-  getAllReadingLogs,
-  getAllReviews,
-  getUserData,
-  getReadingLogs,
-  getBooks,
-} from '@/lib/firebase/firestore';
-import { type User, type Book, type ReadingLog, type Review } from '@/types';
+import { type User, type Book, type ReadingLog } from '@/types';
 import { getUserDisplayName } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import { resetPassword } from '@/lib/firebase/auth';
-import { deleteUserData } from '@/lib/firebase/firestore';
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin: isAdminUser, adminLoading } = useAuth();
@@ -49,16 +39,58 @@ export default function AdminPage() {
   const statsCardsRef = useRef<HTMLDivElement>(null);
   const [statsCardsHeight, setStatsCardsHeight] = useState<number>(0);
 
+  const toDate = (value: string | null | undefined): Date => {
+    return value ? new Date(value) : new Date();
+  };
+
+  const parseBook = (book: any): Book => ({
+    ...book,
+    startDate: toDate(book.startDate),
+    finishDate: book.finishDate ? toDate(book.finishDate) : undefined,
+    createdAt: toDate(book.createdAt),
+    updatedAt: toDate(book.updatedAt),
+  });
+
+  const parseReadingLog = (log: any): ReadingLog => ({
+    ...log,
+    date: toDate(log.date),
+    createdAt: toDate(log.createdAt),
+  });
+
+  const getAuthHeaders = async (): Promise<HeadersInit> => {
+    if (!user) {
+      throw new Error('로그인이 필요합니다.');
+    }
+
+    const token = await user.getIdToken();
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      const [usersData, booksData, logsData, reviewsData] = await Promise.all([
-        getAllUsersAdmin(50),
-        getAllBooks(50),
-        getAllReadingLogs(50),
-        getAllReviews(50),
-      ]);
+
+      const response = await fetch('/api/admin/dashboard?limit=50', {
+        method: 'GET',
+        headers: await getAuthHeaders(),
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        router.push('/');
+        return;
+      }
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || '관리자 데이터를 불러오지 못했습니다.');
+      }
+
+      const data = await response.json();
+      const usersData = data.users as Array<User & { id: string }>;
+      const booksData = (data.books as any[]).map(parseBook);
 
       setBooks(booksData);
       
@@ -132,24 +164,6 @@ export default function AdminPage() {
               userName: getUserDisplayName(userData),
               progress,
             };
-          } else {
-            // usersData에 없는 경우에만 getUserData 호출 (예외 상황)
-            try {
-              const fetchedUserData = await getUserData(book.userId);
-              if (fetchedUserData) {
-                const progress = book.totalPages > 0 
-                  ? Math.round((book.currentPage / book.totalPages) * 100) 
-                  : 0;
-                
-                return {
-                  userId: book.userId,
-                  userName: fetchedUserData.displayName || fetchedUserData.name || '이름 없음',
-                  progress,
-                };
-              }
-            } catch (error) {
-              console.error(`사용자 ${book.userId} 정보 가져오기 실패:`, error);
-            }
           }
           return null;
         });
@@ -169,16 +183,7 @@ export default function AdminPage() {
       
       setBookReaders(readersMap);
 
-      // 통계 계산
-      const totalPagesRead = usersData.reduce((sum, user) => sum + (user.totalPagesRead || 0), 0);
-
-      setStats({
-        totalUsers: usersData.length,
-        totalBooks: booksData.length,
-        totalReadingLogs: logsData.length,
-        totalReviews: reviewsData.length,
-        totalPagesRead,
-      });
+      setStats(data.stats);
     } catch (error) {
       console.error('데이터 로드 실패:', error);
     } finally {
@@ -271,7 +276,21 @@ export default function AdminPage() {
         const logPromises = validReaders.map(async (reader) => {
           loadingMap.set(reader.userId, true);
           try {
-            const logs = await getReadingLogs(reader.userId, reader.bookId, 100);
+            const response = await fetch(
+              `/api/admin/users/${reader.userId}?bookId=${encodeURIComponent(reader.bookId)}&limit=100`,
+              {
+                method: 'GET',
+                headers: await getAuthHeaders(),
+              }
+            );
+
+            if (!response.ok) {
+              const errorBody = await response.json().catch(() => ({}));
+              throw new Error(errorBody.error || '독서 로그를 불러오지 못했습니다.');
+            }
+
+            const data = await response.json();
+            const logs = (data.logs as any[]).map(parseReadingLog);
             logsMap.set(reader.userId, logs);
           } catch (error) {
             console.error(`사용자 ${reader.userId} 독서 로그 가져오기 실패:`, error);
@@ -308,14 +327,19 @@ export default function AdminPage() {
     setLoadingUserData(true);
     
     try {
-      // 사용자의 책 목록과 독서 로그 가져오기
-      const [userBooks, userLogs] = await Promise.all([
-        getBooks(userData.id),
-        getReadingLogs(userData.id, undefined, 50),
-      ]);
-      
-      setSelectedUserBooks(userBooks);
-      setSelectedUserLogs(userLogs);
+      const response = await fetch(`/api/admin/users/${userData.id}?limit=100`, {
+        method: 'GET',
+        headers: await getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || '사용자 데이터를 불러오지 못했습니다.');
+      }
+
+      const data = await response.json();
+      setSelectedUserBooks((data.books as any[]).map(parseBook));
+      setSelectedUserLogs((data.logs as any[]).map(parseReadingLog));
     } catch (error) {
       console.error('사용자 데이터 가져오기 실패:', error);
       setSelectedUserBooks([]);
@@ -369,8 +393,15 @@ export default function AdminPage() {
 
     setDeletingUser(userData.id);
     try {
-      // Firestore의 모든 사용자 데이터 삭제
-      await deleteUserData(userData.id);
+      const response = await fetch(`/api/admin/users/${userData.id}`, {
+        method: 'DELETE',
+        headers: await getAuthHeaders(),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.error || '사용자 삭제에 실패했습니다.');
+      }
       
       // 사용자 목록에서 제거
       setUsers(users.filter(u => u.id !== userData.id));

@@ -99,6 +99,11 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=class-read-book
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=class-read-book.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012
 NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef123456
+
+# 관리자 API를 사용할 때만 필요 (서버 전용)
+FIREBASE_ADMIN_PROJECT_ID=class-read-book
+FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@class-read-book.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
 ## ⚠️ 중요 사항
@@ -106,7 +111,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef123456
 1. **파일 이름 정확히**: `.env.local` (앞에 점 포함, 확장자 없음)
 2. **등호(=) 주변 공백 없음**: `KEY=value` (O), `KEY = value` (X)
 3. **따옴표 없음**: `KEY=value` (O), `KEY="value"` (X)
-4. **NEXT_PUBLIC_ 접두사 필수**: 모든 변수는 `NEXT_PUBLIC_`로 시작해야 함
+4. **클라이언트 변수만 `NEXT_PUBLIC_` 사용**: `FIREBASE_ADMIN_*`는 서버 전용이므로 `NEXT_PUBLIC_`를 붙이지 않습니다.
 5. **개발 서버 재시작**: 환경 변수 변경 후 반드시 서버 재시작 필요
 
 ## 4단계: 확인

@@ -1,219 +1,164 @@
-# 🔐 관리자 페이지 설정 가이드
+# Admin Setup Guide
 
-관리자 페이지를 사용하려면 Firestore에 관리자 정보를 등록해야 합니다.
+이 문서는 이 프로젝트에서 관리자 권한을 안전하게 추가/운영하는 표준 절차입니다.
 
-## 1단계: Firestore에 관리자 추가
+## 목표
 
-Firebase Console에서 다음 단계를 따라주세요:
+- 관리자 권한은 클라이언트가 아니라 서버에서 검증
+- 관리자 기능은 `/api/admin/*` 라우트에서만 처리
+- 권한 기준은 Firestore `admins/{uid}` 문서 존재 여부
+- Firestore Rules에 `isAdmin()` 정책 반영
 
-1. **Firestore Database**로 이동
-2. **데이터** 탭 클릭
-3. **컬렉션 시작** 클릭
-4. 컬렉션 ID: `admins` 입력
-5. 문서 ID: 관리자의 Firebase UID 입력 (또는 자동 생성)
-6. 필드 추가:
-   - `email` (문자열): 관리자 이메일 주소
-     - 필드 이름: `email`
-     - 유형: **문자열** 선택
-     - 값: 관리자 이메일 입력 (예: `admin@example.com`)
-   
-   - `createdAt` (타임스탬프): 생성일시
-     - 필드 이름: `createdAt`
-     - 유형: **타임스탬프** 선택
-     - 날짜/시간 입력:
-       - **방법 1 (권장)**: 날짜와 시간 필드에서 **현재 시간 사용** 버튼 클릭
-       - **방법 2**: 수동으로 날짜와 시간 입력
-         - 날짜: 오늘 날짜 선택 (예: 2024-01-15)
-         - 시간: 현재 시간 입력 (예: 14:30:00)
-     - ⚠️ **참고**: 타임스탬프 필드는 선택사항입니다. `email` 필드만 있어도 관리자로 인식됩니다.
+## 이 프로젝트의 현재 기준 구현
 
-### 예시:
+- 서버 검증 유틸: `lib/server/requireAdmin.ts`
+- Admin SDK 초기화: `lib/firebase/admin.ts`
+- 관리자 API:
+  - `app/api/admin/dashboard/route.ts`
+  - `app/api/admin/users/[userId]/route.ts`
+- 관리자 UI: `app/admin/page.tsx` (직접 Firestore 호출 금지, API만 호출)
+- 규칙 문서: `FIRESTORE_RULES_FOR_MAP.md`
 
-```
-컬렉션: admins
-문서 ID: [관리자의 Firebase UID]
-필드:
-  - email: "admin@example.com" (문자열)
-  - createdAt: [현재 시간] (타임스탬프, 선택사항)
+## 1) 환경변수 설정 (`.env.local`)
+
+아래 3개를 추가합니다.
+
+```env
+FIREBASE_ADMIN_PROJECT_ID=your_project_id
+FIREBASE_ADMIN_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your_project_id.iam.gserviceaccount.com
+FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 ```
 
-### 타임스탬프 필드 추가 상세 가이드:
+주의:
+- `FIREBASE_ADMIN_PRIVATE_KEY`는 큰따옴표 포함 권장
+- 줄바꿈은 실제 엔터가 아니라 `\n` 문자열 유지
+- `NEXT_PUBLIC_` 접두사 절대 사용 금지 (서버 전용)
 
-1. **필드 추가** 버튼 클릭
-2. 필드 이름에 `createdAt` 입력
-3. 유형 드롭다운에서 **타임스탬프** 선택
-4. 날짜와 시간 입력:
-   - **캘린더 아이콘** 클릭 → 오늘 날짜 선택
-   - **시계 아이콘** 클릭 → 현재 시간 입력
-   - 또는 **"현재 시간 사용"** 버튼이 있다면 클릭 (가장 간편)
-5. **저장** 버튼 클릭
+## 2) Firebase Console에서 관리자 UID 확인
 
-💡 **팁**: `createdAt` 필드는 선택사항입니다. 관리자 인증에는 `email` 필드만 필요합니다. 타임스탬프는 나중에 언제 관리자가 추가되었는지 추적하고 싶을 때만 사용하세요.
+방법 A (권장):
+- 앱에서 관리자 계정으로 로그인
+- `http://localhost:3000/admin/debug` 접속
+- 화면의 `UID` 확인
 
-## 2단계: 관리자 UID 확인 방법
+방법 B:
+- Firebase Console -> Authentication -> Users
+- 관리자 계정의 UID 확인
 
-관리자로 지정할 사용자의 Firebase UID를 확인하는 방법:
+## 3) Firestore에 관리자 문서 등록
 
-1. 해당 사용자로 로그인 (Google 로그인 또는 이메일/비밀번호 로그인 중 실제로 사용할 방식으로)
-2. 브라우저 개발자 도구 열기 (F12)
-3. 콘솔에서 다음 코드 실행:
-   ```javascript
-   import { getAuth } from 'firebase/auth';
-   console.log(getAuth().currentUser?.uid);
-   ```
-4. 또는 Firebase Console > Authentication > Users에서 UID 확인
+- Firebase Console -> Firestore Database -> 데이터
+- 컬렉션 `admins` 생성 (없으면)
+- 문서 생성:
+  - 문서 ID: 반드시 관리자 UID와 동일
+  - 필드 예시:
+    - `email` (string)
+    - `role` (string, 예: `super_admin`)
+    - `createdAt` (timestamp)
 
-⚠️ **중요**: 
-- **Google 로그인**과 **이메일/비밀번호 로그인**은 서로 다른 UID를 가집니다
-- 같은 이메일 주소라도 로그인 방식에 따라 UID가 다릅니다
-- 실제로 사용할 로그인 방식으로 로그인한 후 UID를 확인해야 합니다
+중요:
+- 문서 ID를 자동 생성하면 안 됩니다.
+- 권한 판정은 `admins/{uid}` 존재 여부로만 합니다.
 
-### 예시:
-- `iseoul72@gmail.com`으로 Google 로그인 → UID: `abc123...`
-- `iseoul72@gmail.com`으로 이메일/비밀번호 로그인 → UID: `xyz789...` (다름!)
+## 4) Firestore Rules 게시
 
-따라서:
-- Google 로그인을 사용한다면 → Google 로그인으로 로그인한 후 UID 확인
-- 이메일/비밀번호 로그인을 사용한다면 → 이메일/비밀번호로 로그인한 후 UID 확인
+- `FIRESTORE_RULES_FOR_MAP.md`의 코드블록(`rules_version = '2';`부터 마지막 `}`까지) 복사
+- Firebase Console -> Firestore Database -> 규칙 탭에 붙여넣기
+- `게시` 클릭
 
-## 3단계: 관리자 페이지 접근
+최소 확인 포인트:
+- `function isAdmin()` 존재
+- `match /admins/{adminId}` 존재
+- `books`, `readingLogs`, `reviews`, `userBadges`에 `|| isAdmin()` 정책 포함
 
-### 방법 1: 헤더 메뉴에서 접근 (가장 간단)
+## 5) 개발 서버 재시작
 
-1. **관리자로 등록할 때 사용한 로그인 방식**으로 로그인
-   - Google 로그인으로 등록했다면 → Google 로그인 사용
-   - 이메일/비밀번호로 등록했다면 → 이메일/비밀번호 로그인 사용
+환경변수 반영을 위해 서버를 재시작합니다.
 
-2. 로그인 후 상단 헤더를 확인
-   - 헤더 오른쪽에 **"🔐 관리자"** 링크가 빨간색으로 표시됩니다
-   - 이 링크는 관리자 계정으로 로그인한 경우에만 보입니다
-
-3. **"🔐 관리자"** 링크 클릭
-   - 관리자 대시보드로 이동합니다
-
-### 방법 2: 직접 URL 입력
-
-1. 관리자 계정으로 로그인
-2. 브라우저 주소창에 `/admin` 입력
-3. 관리자 대시보드가 표시됩니다
-
-### 관리자 메뉴 위치
-
-관리자 계정으로 로그인하면 헤더에 다음 메뉴들이 표시됩니다:
-- 대시보드
-- 내 서재
-- 통계
-- 업적
-- 랭킹
-- 📊 여정 현황
-- 프로필
-- **🔐 관리자** ← 관리자만 보이는 메뉴 (빨간색)
-
-💡 **팁**: 
-- 관리자 등록 시 사용한 로그인 방식과 동일한 방식으로 로그인해야 관리자 권한이 인식됩니다
-- 관리자 계정은 공통 현황판과 랭킹에서 자동으로 제외됩니다
-
-## 관리자 페이지 기능
-
-- **통계 대시보드**: 전체 사용자, 책, 독서 기록 통계 확인
-- **사용자 관리**: 등록된 사용자 목록 및 정보 확인
-- **책 관리**: 등록된 책 목록 및 진행 상황 확인
-
-## 보안 주의사항
-
-⚠️ **중요**: Firestore 보안 규칙을 업데이트하여 관리자 컬렉션을 보호하세요:
-
-```javascript
-// admins 컬렉션은 읽기 전용 (관리자 확인용)
-match /admins/{adminId} {
-  allow read: if request.auth != null;
-  allow write: if false; // 수동으로만 추가 가능
-}
+```bash
+npm run dev
 ```
 
-## 관리자 추가/제거
+## 6) 검증 시나리오 (필수)
 
-관리자를 추가하거나 제거하려면 Firebase Console에서 `admins` 컬렉션의 문서를 직접 추가/삭제하세요.
+### 관리자 계정
+- `/admin` 접속 가능
+- Network에서 `/api/admin/dashboard?limit=50` 상태코드 `200`
+- 요청 헤더에 `Authorization: Bearer ...` 포함
 
-## 문제 해결
+### 일반 사용자 계정
+- `/admin` 접속 시 홈(`/`)으로 리디렉트
+- `/api/admin/*`는 호출되지 않거나 `401/403`
 
-### 관리자 페이지에 접근할 수 없는 경우
+## 7) 문제 발생 시 빠른 진단
 
-1. Firestore에 `admins` 컬렉션이 생성되었는지 확인
-2. 문서 ID가 현재 로그인한 사용자의 UID와 일치하는지 확인
-3. 브라우저 콘솔에서 오류 메시지 확인
+### `/api/admin/dashboard`가 `500`
+- `.env.local`에 `FIREBASE_ADMIN_*` 3개가 정확히 있는지 확인
+- 저장 후 서버 재시작했는지 확인
+- `FIREBASE_ADMIN_PRIVATE_KEY`의 `\n` 형식 확인
 
-### 관리자 권한이 인식되지 않는 경우
+### 관리자여도 `/admin` 접근 불가
+- 로그인 계정 UID와 `admins` 문서 ID가 정확히 일치하는지 확인
+- Rules 게시 완료 여부 확인
+- 관리자 등록 계정과 현재 로그인 계정이 같은지 확인
 
-#### 1단계: 디버깅 페이지 확인
+### 브라우저에서 API 직접 호출 시 `401`
+- 정상입니다. 주소창 직접 접근은 `Authorization` 헤더가 없기 때문입니다.
 
-1. 브라우저에서 `/admin/debug` 접속
-2. 페이지에서 다음 정보 확인:
-   - 현재 사용자의 UID
-   - useAuth 훅의 관리자 인식 결과
-   - 직접 isAdmin() 호출 결과
+## 8) 보안 운영 권장
 
-#### 2단계: Firestore 확인
+- 비밀값(`CLIENT_SECRET`, Admin private key)은 채팅/문서 공유 시 유출로 간주하고 즉시 재발급
+- `.env.local`은 커밋 금지 (`.gitignore` 유지)
+- 관리자 추가/삭제는 `admins` 컬렉션 문서 추가/삭제로 운영
 
-**가장 흔한 원인: 문서 ID가 UID와 일치하지 않음**
+## 9) 다음에 에이전트에게 요청할 때 템플릿
 
-1. Firebase Console → Firestore Database → 데이터 탭
-2. `admins` 컬렉션 확인
-3. 디버깅 페이지에 표시된 UID와 문서 ID가 **정확히 일치**하는지 확인
-   - UID: `abc123def456...` (디버깅 페이지에서 확인)
-   - 문서 ID: `abc123def456...` (Firestore에서 확인)
-   - ⚠️ **대소문자, 공백, 특수문자까지 정확히 일치해야 합니다**
+```text
+관리자 권한 기능을 추가/개선해 주세요.
 
-#### 3단계: 로그인 방식 확인
+요구사항:
+1) 관리자 검증은 서버에서만 수행
+2) 관리자 기능은 /api/admin/* 라우트로만 처리
+3) Firebase ID 토큰(Bearer) 검증 후 admins/{uid} 존재 확인
+4) Firestore Rules에 isAdmin() + admins 컬렉션 정책 반영
+5) 일반 사용자 /admin 접근 차단
+6) env.example, 운영 문서(ADMIN_SETUP.md) 동기화
+7) 관리자 200 / 일반사용자 401·403 검증까지 수행
+```
 
-**중요**: 관리자 등록 시 사용한 로그인 방식과 동일한 방식으로 로그인해야 합니다.
+## 10) 운영 점검표 (배포 전/후)
 
-- Google 로그인으로 등록했다면 → Google 로그인 사용
-- 이메일/비밀번호로 등록했다면 → 이메일/비밀번호 로그인 사용
+### 배포 전 체크리스트
 
-**같은 이메일이라도 로그인 방식에 따라 UID가 다릅니다!**
+- [ ] `.env.local`(개발), 배포 환경 변수(운영)에 `FIREBASE_ADMIN_*` 3개가 모두 설정되어 있다.
+- [ ] `FIREBASE_ADMIN_PRIVATE_KEY`가 큰따옴표로 감싸져 있고 `\n` 문자열 형식이 유지되어 있다.
+- [ ] `admins` 컬렉션에 관리자 문서가 있으며 문서 ID가 실제 관리자 UID와 일치한다.
+- [ ] Firestore Rules 최신본이 게시되어 `isAdmin()` 및 `admins` 정책이 반영되어 있다.
+- [ ] `app/admin/page.tsx`에서 관리자 데이터 접근은 `/api/admin/*` 호출로만 수행한다.
+- [ ] 비밀값(`NAVER_CLIENT_SECRET`, Admin private key)이 커밋/문서/채팅에 노출되지 않았다.
 
-#### 4단계: 브라우저 콘솔 확인
+### 배포 직후 체크리스트
 
-**참고**: 브라우저 콘솔에서는 `import` 문을 직접 사용할 수 없습니다. 대신 디버깅 페이지(`/admin/debug`)를 사용하거나, 다음 방법을 사용하세요:
+- [ ] 관리자 계정 로그인 후 `/admin` 접속 시 대시보드가 정상 렌더링된다.
+- [ ] Network에서 `/api/admin/dashboard?limit=50` 응답이 `200`이다.
+- [ ] 관리자 화면에서 사용자 상세 조회 API(`/api/admin/users/...`)가 `200`이다.
+- [ ] 일반 계정 로그인 후 `/admin` 접속 시 홈(`/`)으로 리디렉트된다.
+- [ ] 일반 계정에서 `/api/admin/*` 호출이 `401` 또는 `403`으로 차단된다.
+- [ ] 서버 로그에 `Firebase Admin SDK 환경 변수가 누락` 오류가 없다.
 
-1. 브라우저 개발자 도구 열기 (F12)
-2. 콘솔 탭에서 오류 메시지 확인
-3. **디버깅 페이지 사용 (권장)**:
-   - `/admin/debug` 페이지로 이동
-   - 페이지에서 모든 정보를 확인할 수 있습니다
+### 보안 정기 점검 (월 1회 권장)
 
-**또는** React DevTools 사용:
-- React DevTools 확장 프로그램 설치
-- Components 탭에서 `useAuth` 훅의 상태 확인
+- [ ] `admins` 컬렉션의 관리자 목록이 최신 운영 인원과 일치한다.
+- [ ] 불필요한 관리자 문서(퇴사/권한 해제 대상)가 제거되어 있다.
+- [ ] Firestore Rules가 임시 완화 없이 운영 정책을 유지하고 있다.
+- [ ] 키/시크릿 교체 이력(발급일, 교체일)이 기록되어 있다.
+- [ ] 비정상 관리자 API 접근 시도(401/403 급증)가 없는지 로그를 확인했다.
 
-#### 5단계: 해결 방법
+### 사고 대응 체크리스트 (키 유출 의심 시)
 
-**문제가 발견되면:**
-
-1. **문서 ID가 UID와 다름**
-   - Firestore에서 기존 문서 삭제
-   - 새 문서 생성 시 문서 ID를 **정확한 UID**로 설정
-   - 또는 기존 문서의 문서 ID를 UID로 변경
-
-2. **로그인 방식이 다름**
-   - 올바른 로그인 방식으로 로그인
-   - 해당 UID로 관리자 등록
-
-3. **admins 컬렉션이 없음**
-   - `admins` 컬렉션 생성
-   - 문서 ID를 사용자의 UID로 설정
-   - `email` 필드 추가 (선택사항)
-
-4. **캐시 문제**
-   - 로그아웃 후 다시 로그인
-   - 브라우저 캐시 삭제
-   - 페이지 새로고침 (Ctrl+F5 또는 Cmd+Shift+R)
-
-#### 6단계: 확인
-
-수정 후:
-1. 로그아웃 후 다시 로그인
-2. `/admin/debug` 페이지에서 관리자 상태 확인
-3. 헤더에 "🔐 관리자" 링크가 표시되는지 확인
+- [ ] 노출된 시크릿(`NAVER_CLIENT_SECRET` 등)을 즉시 재발급/폐기했다.
+- [ ] 배포 환경 변수와 로컬 환경 변수를 모두 새 값으로 교체했다.
+- [ ] 개발 서버/배포 서버를 재시작해 새 환경 변수를 반영했다.
+- [ ] 관리자/일반 사용자 권한 시나리오를 재검증했다.
+- [ ] 필요한 경우 `admins` 컬렉션을 감사해 불필요 권한을 정리했다.
 

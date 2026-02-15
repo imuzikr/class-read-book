@@ -591,7 +591,10 @@ export const isAdmin = async (userId: string): Promise<boolean> => {
     const adminDoc = doc(db, 'admins', userId);
     const adminSnap = await getDoc(adminDoc);
     return adminSnap.exists();
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'permission-denied') {
+      return false;
+    }
     console.error('관리자 확인 실패:', error);
     return false;
   }
@@ -606,7 +609,10 @@ export const isAdminByEmail = async (email: string): Promise<boolean> => {
     );
     const querySnapshot = await getDocs(q);
     return !querySnapshot.empty;
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'permission-denied') {
+      return false;
+    }
     console.error('관리자 확인 실패:', error);
     return false;
   }
