@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,6 +10,24 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import { resetPassword } from '@/lib/firebase/auth';
+
+const toDate = (value: string | null | undefined): Date => {
+  return value ? new Date(value) : new Date();
+};
+
+const parseBook = (book: any): Book => ({
+  ...book,
+  startDate: toDate(book.startDate),
+  finishDate: book.finishDate ? toDate(book.finishDate) : undefined,
+  createdAt: toDate(book.createdAt),
+  updatedAt: toDate(book.updatedAt),
+});
+
+const parseReadingLog = (log: any): ReadingLog => ({
+  ...log,
+  date: toDate(log.date),
+  createdAt: toDate(log.createdAt),
+});
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin: isAdminUser, adminLoading } = useAuth();
@@ -39,25 +57,7 @@ export default function AdminPage() {
   const statsCardsRef = useRef<HTMLDivElement>(null);
   const [statsCardsHeight, setStatsCardsHeight] = useState<number>(0);
 
-  const toDate = (value: string | null | undefined): Date => {
-    return value ? new Date(value) : new Date();
-  };
-
-  const parseBook = (book: any): Book => ({
-    ...book,
-    startDate: toDate(book.startDate),
-    finishDate: book.finishDate ? toDate(book.finishDate) : undefined,
-    createdAt: toDate(book.createdAt),
-    updatedAt: toDate(book.updatedAt),
-  });
-
-  const parseReadingLog = (log: any): ReadingLog => ({
-    ...log,
-    date: toDate(log.date),
-    createdAt: toDate(log.createdAt),
-  });
-
-  const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const getAuthHeaders = useCallback(async (): Promise<HeadersInit> => {
     if (!user) {
       throw new Error('로그인이 필요합니다.');
     }
@@ -67,9 +67,9 @@ export default function AdminPage() {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
-  };
+  }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -189,7 +189,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getAuthHeaders, router]);
 
   // 통계 카드 높이 측정
   useEffect(() => {
@@ -229,8 +229,7 @@ export default function AdminPage() {
 
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, authLoading, adminLoading, isAdminUser, router]);
+  }, [user, authLoading, adminLoading, isAdminUser, router, fetchData]);
 
   // 선택된 책이 변경될 때 사용자 목록 가져오기
   useEffect(() => {
@@ -311,7 +310,7 @@ export default function AdminPage() {
     } else {
       setSelectedBookReaders([]);
     }
-  }, [selectedBook, books, users]);
+  }, [selectedBook, books, users, getAuthHeaders]);
 
   // 책 클릭 시 해당 책을 읽고 있는 사용자들의 상세 정보 가져오기
   const handleBookClick = (book: Book) => {

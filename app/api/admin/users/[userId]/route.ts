@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { AdminAuthError, requireAdmin } from '@/lib/server/requireAdmin';
 
+export const dynamic = 'force-dynamic';
+
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 300;
 
