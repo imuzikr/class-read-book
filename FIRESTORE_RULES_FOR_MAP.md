@@ -1,6 +1,6 @@
-# 🔒 Firestore 보안 규칙 업데이트 (지도 기능용)
+# 🔒 Firestore 보안 규칙 업데이트 (지도/랭킹/주간대장 기능용)
 
-지도 기능을 사용하려면 Firestore 보안 규칙을 업데이트해야 합니다.
+지도, 랭킹, 주간 독서 대장 기능을 사용하려면 Firestore 보안 규칙을 업데이트해야 합니다.
 
 ## 업데이트된 보안 규칙
 
@@ -32,22 +32,28 @@ service cloud.firestore {
         (request.auth.uid == userId || isAdmin());
     }
     
+    // 책 데이터: 읽기는 인증 사용자 허용 (랭킹/주간대장), 수정/삭제는 본인+관리자만
     match /books/{bookId} {
-      allow read, update, delete: if isSignedIn() &&
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
+    // 독서 기록: 읽기는 인증 사용자 허용 (랭킹/주간대장), 수정/삭제는 본인+관리자만
     match /readingLogs/{logId} {
-      allow read, update, delete: if isSignedIn() &&
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid;
     }
     
+    // 감상문: 읽기는 인증 사용자 허용 (랭킹/주간대장), 수정/삭제는 본인+관리자만
     match /reviews/{reviewId} {
-      allow read, update, delete: if isSignedIn() &&
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid;
@@ -59,18 +65,19 @@ service cloud.firestore {
       allow write: if false;
     }
     
-    // 사용자 뱃지는 자신의 것만 읽을 수 있음
+    // 사용자 뱃지: 읽기는 인증 사용자 허용 (랭킹), 수정/삭제는 본인+관리자만
     match /userBadges/{badgeId} {
-      allow read, update, delete: if isSignedIn() &&
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
-    // 랭킹은 모든 사용자가 읽을 수 있음
+    // 랭킹은 모든 사용자가 읽을 수 있고, 인증 사용자가 쓸 수 있음
     match /rankings/{document=**} {
       allow read: if isSignedIn();
-      allow write: if false;
+      allow write: if isSignedIn();
     }
   }
 }

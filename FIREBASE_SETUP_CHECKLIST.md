@@ -54,50 +54,74 @@ NEXT_PUBLIC_FIREBASE_APP_ID=여기에_appId_값
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 사용자는 자신의 데이터만 읽고 쓸 수 있음
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // 관리자 컬렉션
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // 사용자: 읽기는 인증 사용자 허용, 쓰기는 본인+관리자만
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() &&
+        (request.auth.uid == userId || isAdmin());
     }
     
+    // 책 데이터: 읽기는 인증 사용자 허용, 수정/삭제는 본인+관리자만
     match /books/{bookId} {
-      allow read, write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
+    // 독서 기록: 읽기는 인증 사용자 허용, 수정/삭제는 본인+관리자만
     match /readingLogs/{logId} {
-      allow read, write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
+    // 감상문: 읽기는 인증 사용자 허용, 수정/삭제는 본인+관리자만
     match /reviews/{reviewId} {
-      allow read, write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
     // 뱃지는 모든 사용자가 읽을 수 있음
     match /badges/{badgeId} {
-      allow read: if request.auth != null;
+      allow read: if isSignedIn();
       allow write: if false;
     }
     
-    // 사용자 뱃지는 자신의 것만 읽을 수 있음
+    // 사용자 뱃지: 읽기는 인증 사용자 허용, 수정/삭제는 본인+관리자만
     match /userBadges/{badgeId} {
-      allow read, write: if request.auth != null && 
-        resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && 
+      allow read: if isSignedIn();
+      allow update, delete: if isSignedIn() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && 
         request.resource.data.userId == request.auth.uid;
     }
     
-    // 랭킹은 모든 사용자가 읽을 수 있음
+    // 랭킹은 모든 사용자가 읽을 수 있고, 인증 사용자가 쓸 수 있음
     match /rankings/{document=**} {
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
     }
   }
 }
