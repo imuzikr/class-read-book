@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { getRankings, getUserRanking, type RankingPeriod, type RankingItem } from '@/lib/utils/ranking';
-import { getUserData, getBooks, getReadingLogs } from '@/lib/firebase/firestore';
+import { calculatePeriodExp, updateRanking, type RankingPeriod, type RankingItem } from '@/lib/utils/ranking';
+import { getUserData, getBooks, getReadingLogs, isAdmin } from '@/lib/firebase/firestore';
+import { getAllUsers } from '@/lib/firebase/users';
 import type { User, Book, ReadingLog } from '@/types';
 import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
@@ -32,39 +33,56 @@ export default function RankingPage() {
     setError('');
 
     try {
-      // 먼저 현재 사용자의 랭킹을 업데이트
-      const { getUserData } = await import('@/lib/firebase/firestore');
-      const { updateRanking, calculatePeriodExp } = await import('@/lib/utils/ranking');
+      // 모든 사용자 데이터를 가져와서 직접 랭킹 계산 (rankings 컬렉션에 의존하지 않음)
+      const allUsersData = await getAllUsers(100);
       
-      // 랭킹 데이터를 먼저 가져오고, 랭킹 업데이트는 백그라운드로 처리
-      const [rankingsData, userRankingData, userData] = await Promise.all([
-        getRankings(period, 100),
-        getUserRanking(user.uid, period),
-        getUserData(user.uid),
-      ]);
-
-      // 랭킹 업데이트는 백그라운드로 처리 (페이지 로딩을 막지 않음)
-      if (userData) {
-        const periods: Array<'daily' | 'weekly' | 'monthly' | 'all-time'> = ['daily', 'weekly', 'monthly', 'all-time'];
-        Promise.all(
-          periods.map(async (p) => {
-            try {
-              const periodExp = await calculatePeriodExp(user.uid, p, userData);
-              await updateRanking(user.uid, p, periodExp);
-            } catch (err) {
-              console.error(`${p} 랭킹 업데이트 실패:`, err);
-            }
-          })
-        ).catch(err => console.error('랭킹 업데이트 실패:', err));
-      }
-      setRankings(rankingsData);
-      setUserRanking(userRankingData);
+      // 각 사용자의 기간별 경험치를 병렬로 계산
+      const rankingItems: RankingItem[] = [];
+      
+      await Promise.all(allUsersData.map(async (u) => {
+        try {
+          // 관리자 계정은 랭킹에서 제외
+          const userIsAdmin = await isAdmin(u.id);
+          if (userIsAdmin) return;
+          
+          const periodExp = await calculatePeriodExp(u.id, period, u);
+          
+          rankingItems.push({
+            userId: u.id,
+            userName: getUserDisplayNameForRanking(u),
+            userEmail: u.email,
+            totalExp: periodExp,
+            rank: 0, // 정렬 후 설정
+            isAnonymous: u.isAnonymous || false,
+          });
+          
+          // 백그라운드로 rankings 컬렉션도 업데이트 (캐시 용도)
+          updateRanking(u.id, period, periodExp).catch(err => 
+            console.error(`랭킹 저장 실패:`, err)
+          );
+        } catch (err) {
+          console.error(`사용자 ${u.id} 데이터 처리 실패:`, err);
+        }
+      }));
+      
+      // 경험치 순으로 정렬
+      rankingItems.sort((a, b) => b.totalExp - a.totalExp);
+      
+      // 순위 매기기
+      rankingItems.forEach((item, index) => {
+        item.rank = index + 1;
+      });
+      
+      setRankings(rankingItems);
+      
+      // 현재 사용자의 순위 찾기
+      const myRanking = rankingItems.find(r => r.userId === user.uid);
+      setUserRanking(myRanking || null);
     } catch (error: any) {
       console.error('랭킹 로드 실패:', error);
       const errorMessage = error.message || '랭킹을 불러오는 중 오류가 발생했습니다.';
       setError(errorMessage);
       
-      // Firestore 인덱스 오류인지 확인
       if (errorMessage.includes('index') || errorMessage.includes('The query requires an index')) {
         setError('랭킹 조회를 위해 Firestore 인덱스가 필요합니다. Firebase 콘솔에서 인덱스를 생성해주세요.');
       }

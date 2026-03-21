@@ -1,8 +1,7 @@
-import { getRankings } from './ranking';
-import { getUserData } from '@/lib/firebase/firestore';
 import { getReadingLogs } from '@/lib/firebase/firestore';
 import { getPeriodStartDate } from './ranking';
 import { getUserDisplayNameForRanking } from './userDisplay';
+import { getAllUsers } from '@/lib/firebase/users';
 import type { User } from '@/types';
 
 /**
@@ -113,58 +112,58 @@ const calculateWeeklyPages = async (userId: string): Promise<number> => {
 
 /**
  * 주간 독서 대장 상위 3명 조회
+ * rankings 컬렉션 대신 users 컬렉션에서 직접 모든 사용자를 가져와 계산
  */
 export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChampion[]> => {
-  // 주간 랭킹에서 상위 사용자들 가져오기
-  const rankings = await getRankings('weekly', 50); // 충분히 많은 사용자 가져오기
+  // 모든 사용자 데이터를 직접 가져오기 (rankings 컬렉션에 의존하지 않음)
+  const allUsersData = await getAllUsers(50);
 
-  if (rankings.length === 0) {
+  if (allUsersData.length === 0) {
     return [];
   }
 
   // 각 사용자의 주간 연속 독서 일수와 독서 분량 계산
   const championsData: Omit<WeeklyChampion, 'score'>[] = [];
 
-  for (const ranking of rankings) {
+  for (const userEntry of allUsersData) {
     try {
-      const [weeklyStreak, weeklyPages, userData] = await Promise.all([
-        calculateWeeklyStreak(ranking.userId),
-        calculateWeeklyPages(ranking.userId),
-        getUserData(ranking.userId),
+      // 관리자 계정은 먼저 제외 (불필요한 계산 방지)
+      const { isAdmin } = await import('@/lib/firebase/firestore');
+      const userIsAdmin = await isAdmin(userEntry.id);
+      if (userIsAdmin) continue;
+
+      const [weeklyStreak, weeklyPages] = await Promise.all([
+        calculateWeeklyStreak(userEntry.id),
+        calculateWeeklyPages(userEntry.id),
       ]);
 
-      // 주간 독서일이 0이면 제외 (주간 독서일이 0이면 주간 경험치도 0이어야 함)
-      // 주간 독서일이 0이라는 것은 주간에 독서 기록이 없다는 의미이므로 대장에 포함되면 안 됨
+      // 주간 독서일이 0이면 제외 (주간에 독서 기록이 없다는 의미)
       if (weeklyStreak === 0) {
         continue;
       }
 
       // 주간 경험치 재계산 (주간 독서 기록 기반으로만 계산)
-      // 주간 독서일이 0이 아니므로 주간 독서 기록이 있음
       const weekStart = getPeriodStartDate('weekly');
       let actualWeeklyExp = 0;
       if (weekStart) {
-        const { getReadingLogs, getReviews } = await import('@/lib/firebase/firestore');
-        const readingLogs = await getReadingLogs(ranking.userId);
-        const weekLogs = readingLogs.filter(log => {
+        const { getReadingLogs: fetchLogs, getReviews } = await import('@/lib/firebase/firestore');
+        const logs = await fetchLogs(userEntry.id);
+        const weekLogs = logs.filter(log => {
           const logDate = log.date;
           return logDate >= weekStart;
         });
         
-        // 주간 독서 기록 경험치만 계산 (독서 기록이 있어야 경험치가 있음)
+        // 주간 독서 기록 경험치만 계산
         weekLogs.forEach(log => {
           actualWeeklyExp += log.expGained;
         });
         
         // 감상문 경험치는 주간 독서 기록이 있을 때만 포함
-        // (주간에 읽은 책에 대한 감상문만 인정)
         if (weekLogs.length > 0) {
-          const reviews = await getReviews(ranking.userId);
+          const reviews = await getReviews(userEntry.id);
           const weekReviews = reviews.filter(review => {
             const reviewDate = review.createdAt;
-            // 감상문이 주간 기간 내에 작성되었고, 주간에 읽은 책에 대한 감상문인지 확인
             if (reviewDate >= weekStart) {
-              // 주간에 읽은 책 ID 목록
               const weekBookIds = new Set(weekLogs.map(log => log.bookId));
               return weekBookIds.has(review.bookId);
             }
@@ -174,21 +173,12 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
         }
       }
 
-      // 관리자 계정 제외
-      if (userData) {
-        const { isAdmin } = await import('@/lib/firebase/firestore');
-        const userIsAdmin = await isAdmin(ranking.userId);
-        if (userIsAdmin) {
-          continue;
-        }
-      }
-
       // 최근 읽은 책 커버 이미지 가져오기
       const { getBooks } = await import('@/lib/firebase/firestore');
       let recentBookCover: string | undefined = undefined;
       
       try {
-        const books = await getBooks(ranking.userId);
+        const books = await getBooks(userEntry.id);
         
         // 읽는 중인 책 우선, 없으면 완독한 책
         const readingBooks = books.filter(book => book.status === 'reading');
@@ -210,27 +200,24 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
 
         if (recentBook && recentBook.coverImage) {
           recentBookCover = recentBook.coverImage;
-          console.log(`[주간 대장] ${getUserDisplayNameForRanking(userData)}의 책 커버:`, recentBook.coverImage);
-        } else if (recentBook) {
-          console.log(`[주간 대장] ${getUserDisplayNameForRanking(userData)}의 책 "${recentBook.title}"에는 커버 이미지가 없습니다.`);
         }
       } catch (error) {
-        console.error(`[주간 대장] 사용자 ${ranking.userId}의 책 정보 가져오기 실패:`, error);
+        console.error(`[주간 대장] 사용자 ${userEntry.id}의 책 정보 가져오기 실패:`, error);
       }
 
       championsData.push({
-        userId: ranking.userId,
-        userName: getUserDisplayNameForRanking(userData),
-        userPhotoURL: userData?.photoURL,
-        rank: ranking.rank,
+        userId: userEntry.id,
+        userName: getUserDisplayNameForRanking(userEntry),
+        userPhotoURL: userEntry.photoURL,
+        rank: 0, // 점수 계산 후 재설정됨
         weeklyStreak,
         weeklyPages,
-        weeklyExp: actualWeeklyExp, // 실제 계산된 주간 경험치 사용
+        weeklyExp: actualWeeklyExp,
         recentBookCover,
-        character: userData?.character,
+        character: userEntry.character,
       });
     } catch (error) {
-      console.error(`사용자 ${ranking.userId} 데이터 처리 실패:`, error);
+      console.error(`사용자 ${userEntry.id} 데이터 처리 실패:`, error);
       continue;
     }
   }
@@ -263,4 +250,3 @@ export const getWeeklyChampions = async (limit: number = 3): Promise<WeeklyChamp
     rank: index + 1,
   }));
 };
-
