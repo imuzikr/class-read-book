@@ -3,8 +3,9 @@
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getBook, createReview } from '@/lib/firebase/firestore';
+import { getBook } from '@/lib/firebase/firestore';
 import { type Book } from '@/types';
+import { authedFetch } from '@/lib/utils/apiClient';
 
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -83,51 +84,29 @@ function NewReviewContent() {
         return;
       }
 
-      await createReview({
-        userId: user.uid,
-        bookId: bookIdParam,
-        content: formData.content.trim(),
-        rating,
+      // 서버 API로 감상문 생성 (보너스 경험치는 서버에서 반영)
+      const result = await authedFetch<{
+        oldLevel: number;
+        newLevel: number;
+        newBadges: { name: string }[];
+      }>('/api/reviews', {
+        body: {
+          bookId: bookIdParam,
+          content: formData.content.trim(),
+          rating,
+        },
       });
 
-      // 경험치 추가 및 뱃지 체크
-      const { getUserData, updateUserData, getUserBadges } = await import('@/lib/firebase/firestore');
-      const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
-      const userData = await getUserData(user.uid);
-      if (userData) {
-        const newExp = userData.exp + 70; // 감상문 작성 보너스 70 EXP
-        const { getLevelFromExp } = await import('@/lib/utils/game');
-        const newLevel = getLevelFromExp(newExp);
-        
-        await updateUserData(user.uid, {
-          exp: newExp,
-          level: newLevel,
-        });
-        
-        // 레벨업 알림
-        if (newLevel > userData.level) {
-          alert(`🎉 레벨업! 레벨 ${userData.level} → 레벨 ${newLevel}`);
-        }
+      // 레벨업 알림
+      if (result.newLevel > result.oldLevel) {
+        alert(`🎉 레벨업! 레벨 ${result.oldLevel} → 레벨 ${result.newLevel}`);
+      }
 
-        // 뱃지 체크 및 획득
-        const existingBadges = await getUserBadges(user.uid);
-        const updatedUserData = await getUserData(user.uid);
-        if (updatedUserData) {
-          const newBadges = await findNewBadges(
-            updatedUserData,
-            user.uid,
-            existingBadges
-          );
-
-          if (newBadges.length > 0) {
-            for (const badge of newBadges) {
-              await awardBadge(user.uid, badge.id, badge.expReward);
-            }
-            if (newBadges.length === 1) {
-              alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-            }
-          }
-        }
+      // 뱃지 획득 알림
+      if (result.newBadges.length === 1) {
+        alert(`🎉 뱃지 획득: ${result.newBadges[0].name}!`);
+      } else if (result.newBadges.length > 1) {
+        alert(`🎉 ${result.newBadges.length}개의 뱃지를 획득했습니다!`);
       }
 
       router.push(`/books/${bookIdParam}`);

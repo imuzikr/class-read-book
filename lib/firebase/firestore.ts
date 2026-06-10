@@ -452,17 +452,19 @@ export const updateReadingLog = async (logId: string, updates: Partial<ReadingLo
         if (!logSnap.exists()) {
             throw new Error('독서 기록을 찾을 수 없습니다.');
         }
-        const oldLog = convertReadingLog(logSnap);
-        
-        if (updates.notes !== undefined && !updates.startPage && !updates.endPage) {
-            transaction.update(logRef, { notes: updates.notes });
+        // notes/isPublic만 수정 가능 (페이지/경험치 변경은 서버 API에서 처리)
+        const logUpdates: Record<string, unknown> = {};
+        if (updates.notes !== undefined) {
+            logUpdates.notes = updates.notes;
+        }
+        if (updates.isPublic !== undefined) {
+            logUpdates.isPublic = updates.isPublic;
+        }
+        if (Object.keys(logUpdates).length === 0) {
             return;
         }
 
-        transaction.update(logRef, { 
-            notes: updates.notes,
-            ...(updates.isPublic !== undefined ? { isPublic: updates.isPublic } : {})
-        });
+        transaction.update(logRef, logUpdates);
     });
 };
 
