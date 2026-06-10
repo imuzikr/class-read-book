@@ -57,9 +57,12 @@ export default function RankingPage() {
           });
           
           // 백그라운드로 rankings 컬렉션도 업데이트 (캐시 용도)
-          updateRanking(u.id, period, periodExp).catch(err => 
-            console.error(`랭킹 저장 실패:`, err)
-          );
+          // 보안 규칙상 본인 문서만 쓸 수 있으므로 본인 것만 갱신
+          if (u.id === user.uid) {
+            updateRanking(u.id, period, periodExp).catch(err =>
+              console.error(`랭킹 저장 실패:`, err)
+            );
+          }
         } catch (err) {
           console.error(`사용자 ${u.id} 데이터 처리 실패:`, err);
         }

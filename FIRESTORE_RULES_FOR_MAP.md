@@ -74,10 +74,16 @@ service cloud.firestore {
         request.resource.data.userId == request.auth.uid;
     }
     
-    // 랭킹은 모든 사용자가 읽을 수 있고, 인증 사용자가 쓸 수 있음
-    match /rankings/{document=**} {
+    // 랭킹: 읽기는 인증 사용자, 쓰기는 본인 문서만 (문서 ID = {uid}_{period})
+    match /rankings/{rankingId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && rankingId == request.auth.uid + '_' + request.resource.data.period
+        && request.resource.data.period in ['daily', 'weekly', 'monthly', 'all-time']
+        && request.resource.data.totalExp is number
+        && request.resource.data.totalExp >= 0;
+      allow delete: if isAdmin();
     }
   }
 }
@@ -89,6 +95,11 @@ service cloud.firestore {
 - 기존: 사용자 본인만 읽기/쓰기
 - 변경: 읽기는 인증 사용자 허용(지도 기능), 쓰기는 본인 또는 관리자만 허용
 - 이유: 지도 기능 공개 조회 + 관리자 운영 기능을 동시에 보장
+
+**rankings 컬렉션:**
+- 기존: 인증 사용자 누구나 쓰기 가능 → 타인의 랭킹 점수를 덮어쓸 수 있는 취약점
+- 변경: 본인 문서(`{uid}_{period}`)만 생성/수정 가능, 문서 ID·userId·period·totalExp 필드 검증 추가, 삭제는 관리자만
+- 주의: `totalExp` 값 자체는 여전히 클라이언트가 계산하므로, 본인 점수 부풀리기는 별도 과제(서버 측 계산)로 해결 필요
 
 **주의사항:**
 - `admins/{uid}` 문서가 존재해야 관리자 권한이 활성화됩니다.
