@@ -4,13 +4,10 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
-import { getBook, updateBook, deleteBook, createReadingLog, getReadingLogs, getUserData, updateUserData, getUserBadges, deleteReadingLog, updateReadingLog } from '@/lib/firebase/firestore';
+import { getBook, updateBook, deleteBook, getReadingLogs, updateReadingLog } from '@/lib/firebase/firestore';
 import { type Book, type ReadingLog } from '@/types';
 
-import { calculateExpGain, getLevelFromExp } from '@/lib/utils/game';
-import { getStartOfDay } from '@/lib/utils/date';
-import { updateStreakOnNewLog } from '@/lib/utils/streak';
-import { findNewBadges, awardBadge } from '@/lib/utils/badges';
+import { authedFetch } from '@/lib/utils/apiClient';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -188,27 +185,17 @@ export default function BookDetailPage() {
 
       await updateBook(bookId, updates);
       
-      // 완독 시 뱃지 체크
+      // 완독 시 뱃지 체크 (서버에서 평가/부여)
       if (isCompleting && user) {
-        const { getUserData, getUserBadges } = await import('@/lib/firebase/firestore');
-        const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
-        const userData = await getUserData(user.uid);
-        if (userData) {
-          const existingBadges = await getUserBadges(user.uid);
-          const newBadges = await findNewBadges(
-            userData,
-            user.uid,
-            existingBadges
-          );
-
-          if (newBadges.length > 0) {
-            for (const badge of newBadges) {
-              await awardBadge(user.uid, badge.id, badge.expReward);
-            }
-            if (newBadges.length === 1) {
-              showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-            }
+        try {
+          const { newBadges } = await authedFetch<{ newBadges: { name: string }[] }>('/api/badges/check');
+          if (newBadges.length === 1) {
+            showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
+          } else if (newBadges.length > 1) {
+            showToast(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
           }
+        } catch (badgeErr) {
+          console.error('뱃지 확인 실패:', badgeErr);
         }
       }
 
@@ -241,7 +228,7 @@ export default function BookDetailPage() {
 
     try {
       setLoading(true);
-      await deleteReadingLog(logId);
+      await authedFetch(`/api/reading-logs/${logId}`, { method: 'DELETE' });
       await fetchBook(); // 데이터 새로고침
       showToast('독서 기록이 삭제되었습니다.');
     } catch (err: any) {
@@ -407,99 +394,31 @@ export default function BookDetailPage() {
         return;
       }
 
-      const pagesRead = endPage - startPage + 1;
-      const logDate = getStartOfDay(new Date(readingLogForm.date));
-      // 사용자가 입력한 마지막 페이지를 책의 현재 페이지로 설정 (단, 총 페이지 수를 초과하지 않음)
-      const newCurrentPage = Math.min(endPage, book.totalPages);
-
-      // 경험치 계산
-      const expGained = calculateExpGain(pagesRead);
-
-      // 사용자 데이터에서 공개 설정 가져오기
-      const userData = await getUserData(user.uid);
-      const isPublic = userData?.showTodayThought !== false; // 기본값은 true
-
-      // 독서 기록 생성
-      await createReadingLog({
-        userId: user.uid,
-        bookId: book.id!,
-        date: logDate,
-        startPage,
-        endPage,
-        pagesRead,
-        notes: readingLogForm.notes.trim(),
-        isPublic,
-        expGained,
+      // 서버 API로 독서 기록 생성 (경험치/레벨/스트릭은 서버에서 계산)
+      const result = await authedFetch<{
+        expGained: number;
+        oldLevel: number;
+        newLevel: number;
+        completed: boolean;
+        newBadges: { name: string }[];
+      }>('/api/reading-logs', {
+        body: {
+          bookId: book.id,
+          date: readingLogForm.date,
+          startPage,
+          endPage,
+          notes: readingLogForm.notes.trim(),
+        },
       });
 
-      // 책의 현재 페이지 업데이트
-      const isCompleted = newCurrentPage >= book.totalPages;
-      const wasCompleted = book.status === 'completed';
-      const bookUpdates: any = {
-        currentPage: newCurrentPage,
-        status: isCompleted ? 'completed' : 'reading',
-      };
-      
-      if (isCompleted && !wasCompleted) {
-        bookUpdates.finishDate = new Date();
+      if (result.newLevel > result.oldLevel) {
+        showToast(`🎉 레벨업! 레벨 ${result.oldLevel} → 레벨 ${result.newLevel}`);
       }
-      
-      await updateBook(book.id!, bookUpdates);
 
-      // 사용자 통계 업데이트 (이미 위에서 가져온 userData 사용)
-      if (userData) {
-        const streakData = updateStreakOnNewLog(
-          logDate,
-          userData.currentStreak,
-          userData.lastReadingDate
-        );
-
-        const streakBonus = streakData.currentStreak > 0 ? streakData.currentStreak * 10 : 0;
-        const expGained = calculateExpGain(pagesRead);
-        const totalExpGained = expGained + streakBonus;
-        const newExp = userData.exp + totalExpGained;
-        const newLevel = getLevelFromExp(newExp);
-
-        // 완독한 경우 totalBooksRead 증가 (이전에 완독되지 않았던 경우만)
-        const updateData: any = {
-          totalPagesRead: userData.totalPagesRead + pagesRead,
-          exp: newExp,
-          level: newLevel,
-          currentStreak: streakData.currentStreak,
-          longestStreak: streakData.longestStreak,
-          lastReadingDate: streakData.lastReadingDate || logDate,
-        };
-        
-        if (isCompleted && !wasCompleted) {
-          updateData.totalBooksRead = (userData.totalBooksRead || 0) + 1;
-        }
-
-        await updateUserData(user.uid, updateData);
-        
-        if (newLevel > userData.level) {
-          showToast(`🎉 레벨업! 레벨 ${userData.level} → 레벨 ${newLevel}`);
-        }
-
-        const existingBadges = await getUserBadges(user.uid);
-        const updatedUserData = await getUserData(user.uid);
-        if (updatedUserData) {
-          const newBadges = await findNewBadges(
-            updatedUserData,
-            user.uid,
-            existingBadges
-          );
-
-          if (newBadges.length > 0) {
-            for (const badge of newBadges) {
-              await awardBadge(user.uid, badge.id, badge.expReward);
-            }
-            if (newBadges.length === 1) {
-              showToast(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-            } else {
-              showToast(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
-            }
-          }
-        }
+      if (result.newBadges.length === 1) {
+        showToast(`🎉 뱃지 획득: ${result.newBadges[0].name}!`);
+      } else if (result.newBadges.length > 1) {
+        showToast(`🎉 ${result.newBadges.length}개의 뱃지를 획득했습니다!`);
       }
 
       // 데이터 새로고침
@@ -513,8 +432,8 @@ export default function BookDetailPage() {
         notes: '',
       });
 
-      // 완독 여부 확인 (위에서 이미 정의된 isCompleted 변수 사용)
-      if (isCompleted) {
+      // 완독 여부 확인 (서버 응답 사용)
+      if (result.completed) {
         showToast('🎉 완독을 축하합니다! 독서 기록이 저장되었습니다.');
       } else {
         showToast('독서 기록이 저장되었습니다!');

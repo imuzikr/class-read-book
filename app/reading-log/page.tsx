@@ -3,11 +3,11 @@
 import { useEffect, useState, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getBooks, createReadingLog, getReadingLogs } from '@/lib/firebase/firestore';
+import { getBooks, getReadingLogs } from '@/lib/firebase/firestore';
 import { type Book, type ReadingLog } from '@/types';
 
-import { calculateExpGain, getLevelFromExp } from '@/lib/utils/game';
-import { formatDateKorean, getStartOfDay } from '@/lib/utils/date';
+import { authedFetch } from '@/lib/utils/apiClient';
+import { formatDateKorean } from '@/lib/utils/date';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
@@ -210,9 +210,6 @@ function ReadingLogContent() {
         return;
       }
 
-      const pagesRead = endPage - startPage + 1;
-      const newCurrentPage = Math.max(selectedBook.currentPage, endPage);
-
       // 오늘의 감상 필수 체크
       const notes = formData.notes.trim();
       if (!notes) {
@@ -221,111 +218,33 @@ function ReadingLogContent() {
         return;
       }
 
-      const logDate = getStartOfDay(new Date(formData.date));
-      const logTimestamp = logDate;
-
-      // 경험치 계산 (연속 독서 보너스는 서버에서 처리)
-      const expGained = calculateExpGain(pagesRead, false, 0);
-
-      // 사용자 데이터에서 공개 설정 가져오기
-      const { getUserData } = await import('@/lib/firebase/firestore');
-      const userData = await getUserData(user.uid);
-      const isPublic = userData?.showTodayThought !== false; // 기본값은 true
-
-      // 독서 기록 생성
-      await createReadingLog({
-        userId: user.uid,
-        bookId: formData.bookId,
-        date: logTimestamp,
-        pagesRead,
-        startPage,
-        endPage,
-        notes,
-        isPublic,
-        expGained,
+      // 서버 API로 독서 기록 생성 (경험치/레벨/스트릭은 서버에서 계산)
+      const result = await authedFetch<{
+        expGained: number;
+        oldLevel: number;
+        newLevel: number;
+        completed: boolean;
+        newBadges: { name: string }[];
+      }>('/api/reading-logs', {
+        body: {
+          bookId: formData.bookId,
+          date: formData.date,
+          startPage,
+          endPage,
+          notes,
+        },
       });
 
-      // 책의 현재 페이지 업데이트
-      const { updateBook } = await import('@/lib/firebase/firestore');
-      const isCompleted = newCurrentPage >= selectedBook.totalPages;
-      const wasCompleted = selectedBook.status === 'completed';
-      const bookUpdates: any = {
-        currentPage: newCurrentPage,
-        status: isCompleted ? 'completed' : 'reading',
-      };
-      
-      // 완독한 경우에만 finishDate 설정
-      if (isCompleted && !wasCompleted) {
-        bookUpdates.finishDate = new Date();
+      // 레벨업 알림
+      if (result.newLevel > result.oldLevel) {
+        alert(`🎉 레벨업! 레벨 ${result.oldLevel} → 레벨 ${result.newLevel}`);
       }
-      
-      await updateBook(formData.bookId, bookUpdates);
 
-      // 사용자 통계 업데이트 (나중에 Cloud Function으로 처리할 수도 있음)
-      // 이미 위에서 가져온 userData 사용
-      const { updateUserData, getUserBadges } = await import('@/lib/firebase/firestore');
-      const { updateStreakOnNewLog } = await import('@/lib/utils/streak');
-      const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
-      if (userData) {
-        // 연속 독서 일수 계산
-        const streakData = updateStreakOnNewLog(
-          logDate,
-          userData.currentStreak,
-          userData.lastReadingDate
-        );
-
-        // 연속 독서 보너스 경험치 계산
-        const streakBonus = streakData.currentStreak > 0 ? streakData.currentStreak * 15 : 0;
-        const totalExpGained = expGained + streakBonus;
-        const newExp = userData.exp + totalExpGained;
-        
-        // 경험치에 맞는 레벨 자동 계산
-        const newLevel = getLevelFromExp(newExp);
-
-        // 완독한 경우 totalBooksRead 증가 (이전에 완독되지 않았던 경우만)
-        const updateData: any = {
-          totalPagesRead: userData.totalPagesRead + pagesRead,
-          exp: newExp,
-          level: newLevel,
-          currentStreak: streakData.currentStreak,
-          longestStreak: streakData.longestStreak,
-          lastReadingDate: streakData.lastReadingDate || logDate,
-        };
-        
-        if (isCompleted && !wasCompleted) {
-          updateData.totalBooksRead = (userData.totalBooksRead || 0) + 1;
-        }
-
-        await updateUserData(user.uid, updateData);
-        
-        // 레벨업 알림
-        if (newLevel > userData.level) {
-          alert(`🎉 레벨업! 레벨 ${userData.level} → 레벨 ${newLevel}`);
-        }
-
-        // 뱃지 체크 및 획득
-        const existingBadges = await getUserBadges(user.uid);
-        const updatedUserData = await getUserData(user.uid);
-        if (updatedUserData) {
-          const newBadges = await findNewBadges(
-            updatedUserData,
-            user.uid,
-            existingBadges
-          );
-
-          // 새로 획득한 뱃지가 있으면 알림
-          if (newBadges.length > 0) {
-            for (const badge of newBadges) {
-              await awardBadge(user.uid, badge.id, badge.expReward);
-            }
-            // 뱃지 획득 알림 (간단한 alert, 나중에 토스트로 변경 가능)
-            if (newBadges.length === 1) {
-              alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-            } else {
-              alert(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
-            }
-          }
-        }
+      // 뱃지 획득 알림
+      if (result.newBadges.length === 1) {
+        alert(`🎉 뱃지 획득: ${result.newBadges[0].name}!`);
+      } else if (result.newBadges.length > 1) {
+        alert(`🎉 ${result.newBadges.length}개의 뱃지를 획득했습니다!`);
       }
 
       // 폼 초기화
@@ -340,8 +259,8 @@ function ReadingLogContent() {
       // 데이터 새로고침
       await fetchData();
 
-      // 완독 여부 확인 (위에서 이미 정의된 isCompleted 변수 사용)
-      if (isCompleted) {
+      // 완독 여부 확인 (서버 응답 사용)
+      if (result.completed) {
         alert('🎉 완독을 축하합니다! 🎉\n\n독서 기록이 저장되었습니다.');
       } else {
         alert('독서 기록이 저장되었습니다!');

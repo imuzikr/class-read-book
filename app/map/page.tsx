@@ -8,7 +8,6 @@ import { type Book, type ReadingLog, type Review } from '@/types';
 import { getAllUsers } from '@/lib/firebase/users';
 import { getLevelProgress, getExpToNextLevel, getLevelFromExp, getExpForLevel } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
-import { updateUserData } from '@/lib/firebase/firestore';
 import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 
@@ -52,12 +51,9 @@ export default function StatusBarPage() {
         return;
       }
 
-      // 현재 사용자의 레벨도 자동 업데이트
+      // 표시용 레벨 보정 (저장은 서버 API가 관리)
       const correctLevel = getLevelFromExp(currentUserData.exp);
       if (correctLevel !== currentUserData.level) {
-        await updateUserData(user.uid, {
-          level: correctLevel,
-        });
         currentUserData.level = correctLevel;
       }
 
@@ -95,12 +91,9 @@ export default function StatusBarPage() {
             getReadingLogs(userData.id),
           ]);
 
-          // 레벨이 다르면 자동으로 업데이트 (백그라운드, await 하지 않음)
+          // 표시용 레벨 보정 (저장은 서버 API가 관리)
           if (correctLevel !== userData.level) {
-            updateUserData(userData.id, {
-              level: correctLevel,
-            }).catch(err => console.error(`레벨 업데이트 실패:`, err));
-            userData.level = correctLevel; // 로컬 데이터도 업데이트
+            userData.level = correctLevel;
           }
 
           // 가장 최근 독서 기록 날짜 찾기

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
 import { createBook, checkDuplicateBook } from '@/lib/firebase/firestore';
+import { authedFetch } from '@/lib/utils/apiClient';
 
 import { searchBooks, fetchBookPageCount, type BookSearchResult } from '@/lib/utils/bookSearch';
 import Button from '@/components/ui/Button';
@@ -102,26 +103,16 @@ export default function NewBookPage() {
         coverImage: coverImage || undefined,
       });
 
-      // 뱃지 체크 (첫 책 등록)
-      const { getUserData, getUserBadges } = await import('@/lib/firebase/firestore');
-      const { findNewBadges, awardBadge } = await import('@/lib/utils/badges');
-      const userData = await getUserData(user.uid);
-      if (userData) {
-        const existingBadges = await getUserBadges(user.uid);
-        const newBadges = await findNewBadges(
-          userData,
-          user.uid,
-          existingBadges
-        );
-
-        if (newBadges.length > 0) {
-          for (const badge of newBadges) {
-            await awardBadge(user.uid, badge.id, badge.expReward);
-          }
-          if (newBadges.length === 1) {
-            alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
-          }
+      // 뱃지 체크 (첫 책 등록) - 서버에서 평가/부여
+      try {
+        const { newBadges } = await authedFetch<{ newBadges: { name: string }[] }>('/api/badges/check');
+        if (newBadges.length === 1) {
+          alert(`🎉 뱃지 획득: ${newBadges[0].name}!`);
+        } else if (newBadges.length > 1) {
+          alert(`🎉 ${newBadges.length}개의 뱃지를 획득했습니다!`);
         }
+      } catch (badgeErr) {
+        console.error('뱃지 확인 실패:', badgeErr);
       }
 
       router.push('/books');
