@@ -2,20 +2,48 @@
 
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { getWeeklyChampions, type WeeklyChampion } from '@/lib/utils/weeklyChampions';
+import { useAuth } from '@/hooks/useAuth';
+import { authedFetch } from '@/lib/utils/apiClient';
 import { Trophy, Medal, Award, BookOpen } from 'lucide-react';
 import { getDefaultBookCover } from '@/lib/utils/bookCover';
 import { getCharacterEmoji } from '@/lib/utils/characters';
 
+interface WeeklyChampion {
+  userId: string;
+  userName: string;
+  userPhotoURL?: string;
+  rank: number;
+  weeklyStreak: number;
+  weeklyPages: number;
+  weeklyExp: number;
+  score: number;
+  recentBookCover?: string;
+  character?: {
+    animalType: string;
+    outfitColor: string;
+    outfitDesign: string;
+  };
+}
+
 export default function WeeklyChampions() {
+  const { user, loading: authLoading } = useAuth();
   const [champions, setChampions] = useState<WeeklyChampion[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     const fetchChampions = async () => {
       try {
-        const data = await getWeeklyChampions(3);
-        setChampions(data);
+        const data = await authedFetch<{ champions: WeeklyChampion[] }>(
+          '/api/community/weekly-champions',
+          { method: 'GET' }
+        );
+        setChampions(data.champions);
       } catch (error) {
         console.error('주간 독서 대장 로드 실패:', error);
       } finally {
@@ -24,7 +52,7 @@ export default function WeeklyChampions() {
     };
 
     fetchChampions();
-  }, []);
+  }, [user, authLoading]);
 
   if (loading) {
     return (

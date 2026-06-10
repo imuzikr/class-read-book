@@ -33,6 +33,34 @@ export const kstMonthStart = (now: Date = new Date()): Date => {
   return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), 1) - KST_OFFSET_MS);
 };
 
+export type RankingPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';
+
+/** KST 기준 오늘 0시 */
+export const kstDayStart = (now: Date = new Date()): Date =>
+  new Date(kstDayNumber(now) * DAY_MS - KST_OFFSET_MS);
+
+/** KST 기준 이번 주 월요일 0시 */
+export const kstWeekStart = (now: Date = new Date()): Date => {
+  const dayNum = kstDayNumber(now);
+  const dayOfWeek = (dayNum + 4) % 7; // 0=일요일 (KST 날짜 번호 0인 1970-01-01은 목요일)
+  const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  return new Date((dayNum - diffToMonday) * DAY_MS - KST_OFFSET_MS);
+};
+
+/** 기간별 시작 시각 (all-time은 null) */
+export const kstPeriodStart = (period: RankingPeriod, now: Date = new Date()): Date | null => {
+  switch (period) {
+    case 'daily':
+      return kstDayStart(now);
+    case 'weekly':
+      return kstWeekStart(now);
+    case 'monthly':
+      return kstMonthStart(now);
+    default:
+      return null;
+  }
+};
+
 export interface StreakResult {
   currentStreak: number;
   longestStreak: number;
