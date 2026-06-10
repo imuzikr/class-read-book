@@ -4,13 +4,46 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { calculatePeriodExp, updateRanking, type RankingPeriod, type RankingItem } from '@/lib/utils/ranking';
-import { getUserData, getBooks, getReadingLogs, isAdmin } from '@/lib/firebase/firestore';
-import { getAllUsers } from '@/lib/firebase/users';
-import type { User, Book, ReadingLog } from '@/types';
-import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
+import { authedFetch } from '@/lib/utils/apiClient';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+
+type RankingPeriod = 'daily' | 'weekly' | 'monthly' | 'all-time';
+
+interface RankingItem {
+  userId: string;
+  userName: string;
+  level: number;
+  totalExp: number;
+  rank: number;
+}
+
+interface PublicProfile {
+  user: {
+    userName: string;
+    level: number;
+    exp: number;
+    totalBooksRead: number;
+    totalPagesRead: number;
+    currentStreak: number;
+  };
+  books: Array<{
+    id: string;
+    title: string;
+    author: string;
+    totalPages: number;
+    currentPage: number;
+    status: string;
+    coverImage?: string;
+  }>;
+  logs: Array<{
+    id: string;
+    bookId: string;
+    date: string;
+    pagesRead: number;
+    notes?: string;
+  }>;
+}
 
 export default function RankingPage() {
   const router = useRouter();
@@ -21,9 +54,9 @@ export default function RankingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<{ userId: string; userName: string } | null>(null);
-  const [selectedUserData, setSelectedUserData] = useState<User | null>(null);
-  const [selectedUserBooks, setSelectedUserBooks] = useState<Book[]>([]);
-  const [selectedUserLogs, setSelectedUserLogs] = useState<ReadingLog[]>([]);
+  const [selectedUserData, setSelectedUserData] = useState<PublicProfile['user'] | null>(null);
+  const [selectedUserBooks, setSelectedUserBooks] = useState<PublicProfile['books']>([]);
+  const [selectedUserLogs, setSelectedUserLogs] = useState<PublicProfile['logs']>([]);
   const [loadingUserDetail, setLoadingUserDetail] = useState(false);
 
   const fetchRankings = useCallback(async () => {
@@ -33,53 +66,16 @@ export default function RankingPage() {
     setError('');
 
     try {
-      // 모든 사용자 데이터를 가져와서 직접 랭킹 계산 (rankings 컬렉션에 의존하지 않음)
-      const allUsersData = await getAllUsers(100);
-      
-      // 각 사용자의 기간별 경험치를 병렬로 계산
-      const rankingItems: RankingItem[] = [];
-      
-      await Promise.all(allUsersData.map(async (u) => {
-        try {
-          // 관리자 계정은 랭킹에서 제외
-          const userIsAdmin = await isAdmin(u.id);
-          if (userIsAdmin) return;
-          
-          const periodExp = await calculatePeriodExp(u.id, period, u);
-          
-          rankingItems.push({
-            userId: u.id,
-            userName: getUserDisplayNameForRanking(u),
-            userEmail: u.email,
-            totalExp: periodExp,
-            rank: 0, // 정렬 후 설정
-            isAnonymous: u.isAnonymous || false,
-          });
-          
-          // 백그라운드로 rankings 컬렉션도 업데이트 (캐시 용도)
-          // 보안 규칙상 본인 문서만 쓸 수 있으므로 본인 것만 갱신
-          if (u.id === user.uid) {
-            updateRanking(u.id, period, periodExp).catch(err =>
-              console.error(`랭킹 저장 실패:`, err)
-            );
-          }
-        } catch (err) {
-          console.error(`사용자 ${u.id} 데이터 처리 실패:`, err);
-        }
-      }));
-      
-      // 경험치 순으로 정렬
-      rankingItems.sort((a, b) => b.totalExp - a.totalExp);
-      
-      // 순위 매기기
-      rankingItems.forEach((item, index) => {
-        item.rank = index + 1;
-      });
-      
-      setRankings(rankingItems);
-      
+      // 서버 API에서 랭킹 계산 (다른 사용자의 기록을 클라이언트가 직접 읽지 않음)
+      const data = await authedFetch<{ rankings: RankingItem[] }>(
+        `/api/community/rankings?period=${period}`,
+        { method: 'GET' }
+      );
+
+      setRankings(data.rankings);
+
       // 현재 사용자의 순위 찾기
-      const myRanking = rankingItems.find(r => r.userId === user.uid);
+      const myRanking = data.rankings.find(r => r.userId === user.uid);
       setUserRanking(myRanking || null);
     } catch (error: any) {
       console.error('랭킹 로드 실패:', error);
@@ -154,17 +150,15 @@ export default function RankingPage() {
     setLoadingUserDetail(true);
     
     try {
-      const [userData, books, logs] = await Promise.all([
-        getUserData(userId),
-        getBooks(userId),
-        getReadingLogs(userId, undefined, 20), // 최근 20개만
-      ]);
-      
-      setSelectedUserData(userData);
-      setSelectedUserBooks(books);
-      // 공개된 감상만 필터링
-      const publicLogs = logs.filter(log => log.isPublic !== false);
-      setSelectedUserLogs(publicLogs);
+      // 서버 API가 공개 감상만 걸러서 내려준다 (비공개 감상은 전송 자체가 안 됨)
+      const profile = await authedFetch<PublicProfile>(
+        `/api/users/${userId}/public-profile`,
+        { method: 'GET' }
+      );
+
+      setSelectedUserData(profile.user);
+      setSelectedUserBooks(profile.books);
+      setSelectedUserLogs(profile.logs);
     } catch (error) {
       console.error('사용자 상세 정보 로드 실패:', error);
     } finally {
@@ -272,12 +266,10 @@ export default function RankingPage() {
                     </div>
                     <div>
                       <p className={`font-semibold ${isCurrentUser ? 'text-primary-700' : 'text-gray-900'}`}>
-                        {item.isAnonymous ? '익명 사용자' : item.userName}
+                        {item.userName}
                         {isCurrentUser && ' (나)'}
                       </p>
-                      {!item.isAnonymous && (
-                        <p className="text-xs text-gray-500">{item.userEmail}</p>
-                      )}
+                      <p className="text-xs text-gray-500">Lv.{item.level}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -400,7 +392,7 @@ export default function RankingPage() {
                                     {book?.title || '알 수 없음'}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {log.date.toLocaleDateString('ko-KR')}
+                                    {new Date(log.date).toLocaleDateString('ko-KR')}
                                   </p>
                                 </div>
                                 <span className="text-xs text-gray-600">

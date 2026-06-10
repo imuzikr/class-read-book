@@ -3,12 +3,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserData, getUserBadges, isAdmin, getBooks, getReadingLogs, getReviews } from '@/lib/firebase/firestore';
+import { getUserData, getUserBadges, getBooks, getReadingLogs, getReviews } from '@/lib/firebase/firestore';
 import { type Book, type ReadingLog, type Review } from '@/types';
-import { getAllUsers } from '@/lib/firebase/users';
+import { authedFetch } from '@/lib/utils/apiClient';
 import { getLevelProgress, getExpToNextLevel, getLevelFromExp, getExpForLevel } from '@/lib/utils/game';
 import { getCharacterEmoji, type AnimalType } from '@/lib/utils/characters';
-import { getUserDisplayNameForRanking } from '@/lib/utils/userDisplay';
 import Card from '@/components/ui/Card';
 
 interface UserStatus {
@@ -72,80 +71,54 @@ export default function StatusBarPage() {
         setUserBadges(badges);
       }).catch(err => console.error('여정 데이터 로드 실패:', err));
 
-      // 모든 사용자 데이터 가져오기
-      const allUsersData = await getAllUsers(50); // 상위 50명만 표시
-      
-      // 병렬 처리: 모든 사용자 데이터를 동시에 처리
-      const userStatusPromises = allUsersData.map(async (userData) => {
-        try {
-          // 관리자 계정은 현황판에서 제외
-          const userIsAdmin = await isAdmin(userData.id);
-          if (userIsAdmin) {
-            return null; // 관리자는 건너뛰기
-          }
-
-          // 병렬로 뱃지, 레벨 정보, 독서 기록 가져오기
-          const [userBadges, correctLevel, readingLogs] = await Promise.all([
-            getUserBadges(userData.id),
-            Promise.resolve(getLevelFromExp(userData.exp)),
-            getReadingLogs(userData.id),
-          ]);
-
-          // 표시용 레벨 보정 (저장은 서버 API가 관리)
-          if (correctLevel !== userData.level) {
-            userData.level = correctLevel;
-          }
-
-          // 가장 최근 독서 기록 날짜 찾기
-          let lastReadingLogDate: number | undefined = undefined;
-          if (readingLogs.length > 0) {
-            const sortedLogs = [...readingLogs].sort((a, b) =>
-              b.createdAt.getTime() - a.createdAt.getTime()
-            );
-            lastReadingLogDate = sortedLogs[0].createdAt.getTime();
-          }
-
-          // 현재 레벨 내 진행률 (0-100)
-          let currentLevelProgress = getLevelProgress(userData.exp, userData.level);
-
-          // 전체 진행률 계산 (레벨 10을 최대로 가정)
-          // 레벨 1 = 0%, 레벨 10 = 100%
-          // 각 레벨은 11.11%씩 차지 (100% / 9레벨 간격 = 약 11.11% per level)
-          // 현재 레벨의 기본 진행률 + 현재 레벨 내 진행률의 비율
-          const maxLevel = 10;
-          const baseProgress = ((userData.level - 1) / (maxLevel - 1)) * 100; // 현재 레벨의 시작점
-          const levelProgressRatio = currentLevelProgress / 100; // 현재 레벨 내 진행률 비율 (0-1)
-          const levelContribution = (1 / (maxLevel - 1)) * 100 * levelProgressRatio; // 현재 레벨에서 기여하는 진행률
-          const totalProgress = Math.min(100, baseProgress + levelContribution);
-
-          // 레벨 진행률이 100%를 초과하지 않도록 제한
-          currentLevelProgress = Math.min(100, currentLevelProgress);
-
-          return {
-            userId: userData.id,
-            userName: getUserDisplayNameForRanking(userData),
-            level: userData.level,
-            exp: userData.exp,
-            totalPagesRead: userData.totalPagesRead,
-            badgesCount: userBadges.length,
-            character: userData.character ? {
-              animalType: userData.character.animalType as AnimalType,
-              outfitColor: userData.character.outfitColor,
-              outfitDesign: userData.character.outfitDesign,
-            } : undefined,
-            progress: Math.min(100, totalProgress),
-            currentLevelProgress,
-            lastReadingLogDate,
+      // 모든 사용자 현황을 서버 API에서 가져오기 (다른 사용자의 기록을 직접 읽지 않음)
+      const { statuses } = await authedFetch<{
+        statuses: Array<{
+          userId: string;
+          userName: string;
+          level: number;
+          exp: number;
+          totalPagesRead: number;
+          badgesCount: number;
+          character?: {
+            animalType: string;
+            outfitColor: string;
+            outfitDesign: string;
           };
-        } catch (error) {
-          console.error(`사용자 ${userData.id} 데이터 처리 실패:`, error);
-          return null;
-        }
-      });
+          lastReadingLogDate?: number;
+        }>;
+      }>('/api/community/map', { method: 'GET' });
 
-      // 모든 Promise를 병렬로 실행하고 결과 수집
-      const userStatusResults = await Promise.all(userStatusPromises);
-      const userStatuses = userStatusResults.filter((status) => status !== null) as UserStatus[];
+      const userStatuses: UserStatus[] = statuses.map((item) => {
+        // 현재 레벨 내 진행률 (0-100)
+        let currentLevelProgress = getLevelProgress(item.exp, item.level);
+
+        // 전체 진행률 계산 (레벨 10을 최대로 가정, 레벨 1 = 0%, 레벨 10 = 100%)
+        const maxLevel = 10;
+        const baseProgress = ((item.level - 1) / (maxLevel - 1)) * 100;
+        const levelProgressRatio = currentLevelProgress / 100;
+        const levelContribution = (1 / (maxLevel - 1)) * 100 * levelProgressRatio;
+        const totalProgress = Math.min(100, baseProgress + levelContribution);
+
+        currentLevelProgress = Math.min(100, currentLevelProgress);
+
+        return {
+          userId: item.userId,
+          userName: item.userName,
+          level: item.level,
+          exp: item.exp,
+          totalPagesRead: item.totalPagesRead,
+          badgesCount: item.badgesCount,
+          character: item.character ? {
+            animalType: item.character.animalType as AnimalType,
+            outfitColor: item.character.outfitColor,
+            outfitDesign: item.character.outfitDesign,
+          } : undefined,
+          progress: Math.min(100, totalProgress),
+          currentLevelProgress,
+          lastReadingLogDate: item.lastReadingLogDate,
+        };
+      });
 
       // 경험치 순으로 정렬 (내림차순) - 순위 계산을 위해
       userStatuses.sort((a, b) => {

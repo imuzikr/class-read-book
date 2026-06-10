@@ -57,23 +57,8 @@ export default function DashboardPage() {
             setReadingBooks([]);
           }
           
-          // 랭킹 업데이트 (백그라운드, 병렬 처리)
-          if (data) {
-            const { updateRanking, calculatePeriodExp } = await import('@/lib/utils/ranking');
-            const periods: Array<'daily' | 'weekly' | 'monthly' | 'all-time'> = ['daily', 'weekly', 'monthly', 'all-time'];
-            
-            // 병렬로 처리하고 await 하지 않음 (백그라운드)
-            Promise.all(
-              periods.map(async (period) => {
-                try {
-                  const periodExp = await calculatePeriodExp(user.uid, period, data);
-                  await updateRanking(user.uid, period, periodExp);
-                } catch (error) {
-                  console.error(`${period} 랭킹 업데이트 실패:`, error);
-                }
-              })
-            ).catch(err => console.error('랭킹 업데이트 실패:', err));
-          }
+          // 랭킹은 이제 서버 API(/api/community/rankings)가 실시간 계산하므로
+          // rankings 컬렉션 캐시 갱신이 더 이상 필요 없음
         } catch (error) {
           console.error('사용자 데이터 로드 실패:', error);
         } finally {

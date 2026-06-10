@@ -70,8 +70,14 @@ service cloud.firestore {
     }
 
     // 독서 기록: 생성은 서버 API 전용, 본인은 감상/공개 여부만 수정 가능
+    // 읽기는 본인 것 또는 공개(isPublic) 기록만 허용 - 비공개 감상 보호
+    // (쿼리는 userId == 본인 또는 isPublic == true 필터를 반드시 포함해야 함)
     match /readingLogs/{logId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.isPublic == true ||
+        isAdmin()
+      );
       allow create: if false;
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -124,8 +130,8 @@ service cloud.firestore {
 ## 변경 시 주의사항
 
 - `users` 읽기가 인증 사용자 전체에게 열려 있으므로, 문서에 이메일 등 민감정보를 두는 구조는 개선 과제로 남아 있습니다 (공개 프로필 분리 권장).
-- `readingLogs` 읽기도 인증 사용자 전체에게 허용된 상태라 `isPublic: false` 기록의 보호는 클라이언트 필터에 의존합니다 (개선 과제).
 - 규칙 게시 전 반드시 규칙 플레이그라운드로 검증하세요.
+- 이 규칙은 랭킹/주간대장/지도 집계가 서버 API(`/api/community/*`)로 동작하는 코드 버전을 전제로 합니다. 해당 코드가 배포되기 전에 `readingLogs` 읽기 제한을 적용하면 위 기능들이 깨집니다.
 
 ## 검증 방법 (규칙 플레이그라운드)
 
@@ -134,11 +140,15 @@ service cloud.firestore {
 | 본인 uid로 본인 `users` 문서의 `exp` 필드 update | ❌ 거부 |
 | 본인 uid로 본인 `users` 문서의 `nickname` 필드 update | ✅ 허용 |
 | `readingLogs` 문서 create | ❌ 거부 |
+| 타인의 `readingLogs` 문서(`isPublic: false`) get | ❌ 거부 |
+| 타인의 `readingLogs` 문서(`isPublic: true`) get | ✅ 허용 |
+| 본인의 `readingLogs` 문서 get (비공개 포함) | ✅ 허용 |
 | 다른 uid의 `rankings/{타인uid}_weekly` 문서 create | ❌ 거부 |
 | 본인 `rankings/{본인uid}_weekly` create (`userId`=본인, `period`='weekly', `totalExp`=숫자) | ✅ 허용 |
 
 ## 변경 이력
 
+- **2026-06**: `readingLogs` 읽기를 본인 또는 공개(isPublic) 기록으로 제한 (비공개 감상 보호). 랭킹/주간대장/지도 집계는 서버 API로 이전
 - **2026-06**: 경험치/레벨/스트릭 서버 계산 전환에 맞춰 스탯 필드 클라이언트 쓰기 차단, `readingLogs`/`reviews`/`userBadges` 생성을 서버 전용으로 변경
 - **2026-06**: `rankings` 쓰기를 본인 문서로 제한 (타인 랭킹 조작 차단)
 - 이전: 지도/랭킹/주간대장 기능을 위한 읽기 권한 확대
