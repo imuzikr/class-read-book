@@ -325,15 +325,18 @@ export const getReadingLogs = async (
   }
   
   let logs = querySnapshot.docs.map((doc) => convertReadingLog(doc));
-  
-  if (bookId) {
-    logs.sort((a, b) => b.date.getTime() - a.date.getTime());
-    
-    if (limitCount) {
-      logs = logs.slice(0, limitCount);
-    }
+
+  // 날짜는 일 단위라 같은 날 기록끼리는 순서가 정해지지 않으므로 생성 시각으로 추가 정렬
+  logs.sort(
+    (a, b) =>
+      b.date.getTime() - a.date.getTime() ||
+      b.createdAt.getTime() - a.createdAt.getTime()
+  );
+
+  if (bookId && limitCount) {
+    logs = logs.slice(0, limitCount);
   }
-  
+
   return logs;
 };
 
